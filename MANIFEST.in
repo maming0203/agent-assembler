@@ -1,0 +1,6 @@
+
+include README.md
+include LICENSE
+include pyproject.toml
+recursive-include tests *.py
+recursive-include agent_assembler *.py *.md
