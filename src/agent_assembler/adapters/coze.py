@@ -67,7 +67,7 @@ class CozeAdapter(BaseAdapter):
                 }
             },
             "model_info": {
-                "model_name": "gpt-4o"
+                "model_name": "coze-pro"
             },
             "metadata": {
                 "source": "agent-assembler",
