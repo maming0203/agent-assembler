@@ -194,18 +194,24 @@ else:
                 # Deploy actions
                 col1, col2, col3 = st.columns(3)
                 with col1:
-                    if st.button(f"🚀 发布到 Coze", key=f"coze_{c['agent_id']}"):
+                    if st.button(f"🚀 发布到 Coze", key=f"coze_{c['id']}"):
                         if not st.session_state.coze_token or not st.session_state.coze_space_id:
                             st.error("请先在侧边栏设置 Coze Token 和 Space ID")
                         else:
                             with st.spinner("正在发布到 Coze..."):
-                                adapter = CozeAdapter()
-                                # Reconstruct recipe for adapter
+                                adapter = CozeAdapter(skills_dir="/data/jit/skills" if os.path.exists("/data/jit") else os.path.expanduser("~/.hermes/skills"))
+                                
+                                # Reconstruct recipe from full stored config
+                                # content is the JSON dict stored in the DB
+                                trigger_keywords = content.get('trigger_keywords', [c['name']])
+                                skills = content.get('skills', [])
+                                notes = content.get('notes', '')
+                                
                                 recipe = Recipe(
                                     name=c['name'],
-                                    trigger_keywords=[c['name']],
-                                    skills=[],
-                                    notes=content.get('notes', '')
+                                    trigger_keywords=trigger_keywords,
+                                    skills=skills,
+                                    notes=notes
                                 )
                                 config = adapter.export(recipe)
                                 bot_info = config['bot_info']
@@ -230,7 +236,7 @@ else:
                                     st.error("❌ Bot 创建失败")
 
                 with col2:
-                    if st.button(f"🚀 发布到千问", key=f"qianwen_{c['agent_id']}"):
+                    if st.button(f"🚀 发布到千问", key=f"qianwen_{c['id']}"):
                         if not st.session_state.qianwen_key:
                             st.error("请先在侧边栏设置千问 Key")
                         else:
@@ -243,5 +249,5 @@ else:
                         data=json.dumps(content, ensure_ascii=False, indent=2),
                         file_name=f"{c['name'].replace(' ', '_')}.json",
                         mime="application/json",
-                        key=f"dl_{c['agent_id']}"
+                        key=f"dl_{c['id']}"
                     )

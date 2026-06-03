@@ -195,34 +195,49 @@ def find_recipe(query):
     
     return None
 
+
+def find_skill_in_directory(base_dir, filename):
+    """Recursively search for SKILL.md or filename.md in base_dir."""
+    if not os.path.exists(base_dir): return None
+    for root, dirs, files in os.walk(base_dir):
+        # Skip AutoCreated skills if we are searching main skills (optional, but good for performance)
+        if "AutoCreated" in root and base_dir in root:
+            continue
+            
+        # Strategy A: Look for SKILL.md in a folder named like the skill
+        if os.path.basename(root) == filename:
+            skill_file = os.path.join(root, "SKILL.md")
+            if os.path.exists(skill_file):
+                return skill_file
+        
+        # Strategy B: Look for {filename}.md directly
+        if f"{filename}.md" in files:
+            return os.path.join(root, f"{filename}.md")
+            
+    return None
+
 def load_skill(recipe):
     fn = recipe.get("filename", "unknown")
     skill_rel = recipe.get("skill", "")
     paths = []
     
+    # 1. Try specific relative path (Cloud preference)
     if IS_CLOUD and skill_rel:
-        paths.append(os.path.join(SKILL_BASE, f"{skill_rel}/SKILL.md"))
+        path = os.path.join(SKILL_BASE, f"{skill_rel}/SKILL.md")
+        if os.path.exists(path): return open(path, encoding="utf-8").read()
     
-    for cat in ["Legal", "CulturalTourism", "finance", "devops", "domain", "operations"]:
-        paths.append(os.path.join(SKILL_BASE, f"{cat}/{fn}/SKILL.md"))
-    
-    paths.append(f"{SKILL_AUTO_DIR}/{fn}.md")
-    for p in paths:
-        if os.path.exists(p):
-            return open(p, encoding="utf-8").read()
+    # 2. Try filename in AutoCreated
+    auto_path = f"{SKILL_AUTO_DIR}/{fn}.md"
+    if os.path.exists(auto_path): return open(auto_path, encoding="utf-8").read()
+
+    # 3. Generic Recursive Search (Replaces hardcoded categories)
+    found = find_skill_in_directory(SKILL_BASE, fn)
+    if found:
+        return open(found, encoding="utf-8").read()
+
+    # Fallback
     return "Provide expert advice based on general knowledge."
 
-def call_agent(agent_id, msg):
-    try:
-        safe_msg = shlex.quote(msg)
-        cmd_str = f"openclaw agent --agent {agent_id} --message {safe_msg} --json --timeout 120"
-        res = subprocess.run(cmd_str, shell=True, capture_output=True, text=True, timeout=130)
-        if res.returncode == 0:
-            data = json.loads(res.stdout)
-            payloads = data.get("result", {}).get("payloads", [])
-            if payloads and "text" in payloads[0]: return payloads[0]["text"]
-        return f"执行失败: {res.stderr[:100]}"
-    except Exception as e: return f"超时或错误: {str(e)}"
 
 def check_usage(uid):
     usage = load_json(USAGE_FILE)
