@@ -5,23 +5,15 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agent-assembler"
-version = "0.1.0"
-description = "Deterministic Context Assembly for AI Agents - JIT Skill Loading"
+version = "0.2.0.dev1"
+description = "Deterministic Context Assembly for AI Agents."
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.8"
 license = {text = "MIT"}
-authors = [
-    {name = "Hermes Agent", email = "gino@hermes.ai"}
-]
-keywords = ["LLM", "AI", "Agent", "Context", "JIT", "Prompt Engineering", "LangChain"]
-classifiers = [
-    "Development Status :: 3 - Alpha",
-    "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
-    "Programming Language :: Python :: 3",
-]
+dynamic = ["dependencies"]
 
-dependencies = []
+[tool.setuptools.packages.find]
+where = ["src"]
 
-[project.urls]
-Homepage = "https://github.com/gino/agent-assembler"
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
