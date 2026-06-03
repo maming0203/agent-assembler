@@ -199,13 +199,19 @@ else:
                             st.error("请先在侧边栏设置 Coze Token 和 Space ID")
                         else:
                             with st.spinner("正在发布到 Coze..."):
-                                adapter = CozeAdapter()
-                                # Reconstruct recipe for adapter
+                                adapter = CozeAdapter(skills_dir="/data/jit/skills" if os.path.exists("/data/jit") else os.path.expanduser("~/.hermes/skills"))
+                                
+                                # Reconstruct recipe from full stored config
+                                # content is the JSON dict stored in the DB
+                                trigger_keywords = content.get('trigger_keywords', [c['name']])
+                                skills = content.get('skills', [])
+                                notes = content.get('notes', '')
+                                
                                 recipe = Recipe(
                                     name=c['name'],
-                                    trigger_keywords=[c['name']],
-                                    skills=[],
-                                    notes=content.get('notes', '')
+                                    trigger_keywords=trigger_keywords,
+                                    skills=skills,
+                                    notes=notes
                                 )
                                 config = adapter.export(recipe)
                                 bot_info = config['bot_info']
