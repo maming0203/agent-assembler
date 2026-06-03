@@ -1,4 +1,3 @@
-
 from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel
 import os
@@ -8,7 +7,7 @@ import subprocess
 import shlex
 import re
 
-app = FastAPI(title="Agent Assembler Gateway", version="2.0.1")
+app = FastAPI(title="Agent Assembler Gateway", version="2.1.0")
 
 DB_FILE = "/tmp/user_db.json"
 USAGE_FILE = "/tmp/user_usage.json"
@@ -28,6 +27,14 @@ else:
 os.makedirs(AUTO_DIR, exist_ok=True)
 os.makedirs(SKILL_AUTO_DIR, exist_ok=True)
 
+# SDK import (graceful fallback if not installed)
+try:
+    from agent_assembler import Assembler
+    from agent_assembler.adapters import CozeAdapter, QianwenAdapter
+    SDK_AVAILABLE = True
+except ImportError:
+    SDK_AVAILABLE = False
+
 # 初始化 DB
 if not os.path.exists(DB_FILE): open(DB_FILE, "w").write("{}")
 if not os.path.exists(USAGE_FILE): open(USAGE_FILE, "w").write("{}")
@@ -41,6 +48,11 @@ def save_json(f, data):
 class QueryRequest(BaseModel):
     query: str
 
+class AgentExportRequest(BaseModel):
+    name: str
+    description: str
+    platform: str  # "Coze" or "Qianwen"
+
 class LoginResponse(BaseModel):
     status: str
     api_key: str
@@ -51,7 +63,6 @@ class LoginResponse(BaseModel):
 async def login(device_id: str = "test_device"):
     db = load_json(DB_FILE)
     if device_id not in db or isinstance(db[device_id], str):
-        # Reset structure if old string format found
         db[device_id] = {"api_key": f"key_{device_id}_{int(time.time())}", "plan": "free"}
         save_json(DB_FILE, db)
     
@@ -73,14 +84,13 @@ async def run_recipe(req: QueryRequest, x_api_key: str = Header(None)):
     recipe = find_recipe(req.query)
     
     if not recipe:
-        # 🟢 触发 AUTO-CRAFT 动态炼金
         return await auto_craft_and_run(req.query, user_id)
         
     # 2. 付费拦截
     if is_premium(recipe) and user_plan == "free":
         return paywall_response("Premium 配方需要升级解锁。")
         
-    # 3. 每日次数拦截 (免费用户 3次/天)
+    # 3. 每日次数拦截
     if user_plan == "free":
         if check_usage(user_id) >= 3:
             return paywall_response("今日免费额度已用完。")
@@ -92,6 +102,38 @@ async def run_recipe(req: QueryRequest, x_api_key: str = Header(None)):
     result = call_agent(recipe.get("routing", "legal-agent"), agent_query)
     
     return {"status": "success", "recipe_used": recipe.get("name", recipe.get("filename", "unknown")), "report": result}
+
+# --- 新增: SDK Adapter 导出 API ---
+@app.post("/api/v1/export")
+async def export_agent(req: AgentExportRequest, x_api_key: str = Header(None)):
+    """Export an Agent config to target platform DSL using SDK Adapters."""
+    if not x_api_key: raise HTTPException(401, "Missing API Key")
+    
+    user_id = get_user_id_by_key(x_api_key)
+    if not user_id: raise HTTPException(403, "Invalid Key")
+    
+    if not SDK_AVAILABLE:
+        return {"status": "error", "message": "SDK not available on this server"}
+    
+    from agent_assembler.recipe import Recipe
+    
+    recipe = Recipe(
+        name=req.name,
+        trigger_keywords=[req.name],
+        skills=[],
+        notes=req.description
+    )
+    
+    if req.platform == "Coze":
+        adapter = CozeAdapter(skills_dir=SKILL_BASE)
+        config = adapter.export(recipe)
+    elif req.platform == "Qianwen":
+        adapter = QianwenAdapter(skills_dir=SKILL_BASE)
+        config = adapter.export(recipe)
+    else:
+        return {"status": "error", "message": f"Unsupported platform: {req.platform}"}
+    
+    return {"status": "success", "platform": req.platform, "config": config}
 
 # --- 动态炼金 ---
 async def auto_craft_and_run(query, user_id):
@@ -115,7 +157,6 @@ def paywall_response(msg): return {"status": "paywall", "message": msg, "price":
 def get_user_id_by_key(key):
     db = load_json(DB_FILE)
     for uid, info in db.items():
-        # Handle both old format (string) and new format (dict)
         if isinstance(info, str) and info == key: return uid
         if isinstance(info, dict) and info.get("api_key") == key: return uid
     return None
@@ -159,15 +200,12 @@ def load_skill(recipe):
     skill_rel = recipe.get("skill", "")
     paths = []
     
-    # 云端优先：按 skill 相对路径查找
     if IS_CLOUD and skill_rel:
         paths.append(os.path.join(SKILL_BASE, f"{skill_rel}/SKILL.md"))
     
-    # 本地路径：按 Category/skill 结构
     for cat in ["Legal", "CulturalTourism", "finance", "devops", "domain", "operations"]:
         paths.append(os.path.join(SKILL_BASE, f"{cat}/{fn}/SKILL.md"))
     
-    # 自动创建的 skill
     paths.append(f"{SKILL_AUTO_DIR}/{fn}.md")
     for p in paths:
         if os.path.exists(p):

@@ -1,4 +1,3 @@
-
 import streamlit as st
 import sys
 import os
@@ -25,6 +24,7 @@ if 'logged_in' not in st.session_state:
     st.session_state.coze_token = ""
     st.session_state.qianwen_key = ""
     st.session_state.coze_space_id = ""
+    st.session_state.last_export = None
 
 # --- Auth Page ---
 if not st.session_state.logged_in:
@@ -180,12 +180,68 @@ else:
             if stats['platforms']:
                 st.bar_chart(pd.DataFrame([stats['platforms']]))
         
-    # --- Agent List ---
+    # --- Agent List + Deploy Actions ---
     st.header("我的 Agent 列表")
     configs = mgr.get_configs()
     if not configs:
         st.info("暂无 Agent")
     else:
         for c in configs:
+            content = json.loads(c['content'])
             with st.expander(f"{c['name']} ({c['platform']})"):
-                st.json(json.loads(c['content']))
+                st.json(content)
+                
+                # Deploy actions
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    if st.button(f"🚀 发布到 Coze", key=f"coze_{c['agent_id']}"):
+                        if not st.session_state.coze_token or not st.session_state.coze_space_id:
+                            st.error("请先在侧边栏设置 Coze Token 和 Space ID")
+                        else:
+                            with st.spinner("正在发布到 Coze..."):
+                                adapter = CozeAdapter()
+                                # Reconstruct recipe for adapter
+                                recipe = Recipe(
+                                    name=c['name'],
+                                    trigger_keywords=[c['name']],
+                                    skills=[],
+                                    notes=content.get('notes', '')
+                                )
+                                config = adapter.export(recipe)
+                                bot_info = config['bot_info']
+                                
+                                client = CozeApiClient(st.session_state.coze_token)
+                                bot_id = client.create_bot(
+                                    name=bot_info['name'],
+                                    description=bot_info['description'],
+                                    prompt=bot_info['prompt_info']['prompt'],
+                                    space_id=st.session_state.coze_space_id
+                                )
+                                
+                                if bot_id:
+                                    st.success(f"✅ Bot 创建成功！ID: {bot_id}")
+                                    # Auto publish
+                                    pub_result = client.publish_bot(bot_id, 1024)
+                                    if pub_result.get("success"):
+                                        st.success(f"✅ 已发布到 API 渠道 (connector_id: 1024)")
+                                    else:
+                                        st.warning(f"⚠️ 发布状态: {pub_result}")
+                                else:
+                                    st.error("❌ Bot 创建失败")
+
+                with col2:
+                    if st.button(f"🚀 发布到千问", key=f"qianwen_{c['agent_id']}"):
+                        if not st.session_state.qianwen_key:
+                            st.error("请先在侧边栏设置千问 Key")
+                        else:
+                            st.info("千问发布接口待完善，已导出配置。")
+                            st.json(content)
+
+                with col3:
+                    st.download_button(
+                        label="📥 下载 JSON",
+                        data=json.dumps(content, ensure_ascii=False, indent=2),
+                        file_name=f"{c['name'].replace(' ', '_')}.json",
+                        mime="application/json",
+                        key=f"dl_{c['agent_id']}"
+                    )
