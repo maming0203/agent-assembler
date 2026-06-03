@@ -1,0 +1,26 @@
+
+version: '3.8'
+
+services:
+  web:
+    build: .
+    container_name: agent-assembler-saas
+    restart: always
+    volumes:
+      - ./data:/app/data # Persist tenant data
+    ports:
+      - "8501:8501"
+    environment:
+      - PYTHONPATH=/app/src
+
+  # Optional: Nginx for HTTPS (if user sets up SSL)
+  # nginx:
+  #   image: nginx:alpine
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ./nginx.conf:/etc/nginx/nginx.conf
+  #     - ./certs:/etc/nginx/certs
+  #   depends_on:
+  #     - web
