@@ -1,0 +1,21 @@
+{
+  "name": "高难度销售演练",
+  "trigger_keywords": [
+    "销售演练",
+    "困难客户",
+    "模拟谈判"
+  ],
+  "skills": [
+    "immersive-rpg-simulation"
+  ],
+  "notes": "USER:我是初级销售经理|OPP:你是一个对价格敏感、态度强硬的采购经理",
+  "routing": null,
+  "engine_config": {
+    "type": "character-v1",
+    "initial_state": {
+      "Trust": 30,
+      "Anger": 60
+    },
+    "state_rules": "如果用户报价合理，Trust 增加；如果用户表现不专业，Anger 增加"
+  }
+}
