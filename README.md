@@ -3,6 +3,8 @@
 > **Deterministic Context Assembly for AI Agents.**
 > The Engine for the Multi-Agent Distribution Network.
 
+⚠️ **Status**: Currently in active development (Phase 1: SDK Decoupling). Please clone from GitHub for now. `pip install` package coming soon in Phase 2.
+
 ## 1. Vision
 **From JIT Engine to Agent Factory & Distribution Network.**
 Agent Assembler is no longer just a script; it is the **core engine** that powers multi-agent systems across platforms (Qianwen, Coze, WeChat, etc.).

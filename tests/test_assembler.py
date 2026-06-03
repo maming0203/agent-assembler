@@ -4,7 +4,7 @@ import sys
 import tempfile
 import json
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
 
 from agent_assembler import Assembler, Recipe
 from agent_assembler.recipe import SkillRef
