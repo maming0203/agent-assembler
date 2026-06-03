@@ -1,0 +1,13 @@
+{
+  "name": "合同审查助手",
+  "trigger_keywords": [
+    "审合同",
+    "合同审查",
+    "法律审查"
+  ],
+  "skills": [
+    "nda-template-review"
+  ],
+  "notes": "审查商业合同中的风险条款，重点关注保密协议、违约责任和争议解决条款。",
+  "routing": "legal-agent"
+}
