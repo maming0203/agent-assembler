@@ -4,3 +4,9 @@ __pycache__/
 dist/
 build/
 .eggs/
+data/
+*.pyc
+.env
+venv/
+*.egg
+
