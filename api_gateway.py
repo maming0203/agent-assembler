@@ -99,7 +99,10 @@ async def run_recipe(req: QueryRequest, x_api_key: str = Header(None)):
     # 4. 执行
     skill_content = load_skill(recipe)
     agent_query = f"Strictly follow this skill logic:\n{skill_content}\n\nUser Query: {req.query}"
-    result = call_agent(recipe.get("routing", "legal-agent"), agent_query)
+    routing_id = recipe.get("routing")
+    if not routing_id:
+        routing_id = "legal-agent"  # Fallback to default if routing is null/missing
+    result = call_agent(routing_id, agent_query)
     
     return {"status": "success", "recipe_used": recipe.get("name", recipe.get("filename", "unknown")), "report": result}
 
@@ -250,3 +253,29 @@ def increment_usage(uid):
     usage.setdefault(uid, {})
     usage[uid][today] = usage[uid].get(today, 0) + 1
     save_json(USAGE_FILE, usage)
+
+
+def call_agent(agent_id, msg):
+    try:
+        safe_msg = shlex.quote(msg)
+        cmd_str = f"openclaw agent --agent {agent_id} --message {safe_msg} --json --timeout 120"
+        res = subprocess.run(cmd_str, shell=True, capture_output=True, text=True, timeout=130)
+        
+        # Robustness: Extract JSON block from stdout (OpenClaw sometimes prints logs before JSON)
+        stdout = res.stdout
+        if '{' in stdout:
+            json_str = stdout[stdout.find('{'):]
+            try:
+                data = json.loads(json_str)
+                payloads = data.get("result", {}).get("payloads", [])
+                if payloads and "text" in payloads[0]:
+                    return payloads[0]["text"]
+            except json.JSONDecodeError:
+                pass
+                
+        # If still no result, return error details
+        err_msg = res.stderr.strip()[:200] if res.stderr else "Unknown error"
+        return f"执行失败: {err_msg}"
+    except Exception as e: 
+        return f"超时或错误: {str(e)}"
+
