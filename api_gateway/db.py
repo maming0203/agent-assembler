@@ -3,23 +3,12 @@ import json
 import os
 import time
 
-DB_DIR = os.path.expanduser("~/.agent-assembler")
-os.makedirs(DB_DIR, exist_ok=True)
-DB_FILE = os.path.join(DB_DIR, "user_db.json")
-USAGE_FILE = os.path.join(DB_DIR, "user_usage.json")
+from .config import DB_FILE, USAGE_FILE, RECIPE_BASE, SKILL_BASE, SKILL_AUTO_DIR, IS_CLOUD
 
 if not os.path.exists(DB_FILE):
     open(DB_FILE, "w").write("{}")
 if not os.path.exists(USAGE_FILE):
     open(USAGE_FILE, "w").write("{}")
-
-IS_CLOUD = os.path.exists("/data/jit")
-if IS_CLOUD:
-    RECIPE_BASE = "/data/jit/recipes"
-    SKILL_BASE = "/data/jit/skills"
-else:
-    RECIPE_BASE = os.path.expanduser("~/Desktop/配方")
-    SKILL_BASE = os.path.expanduser("~/.hermes/skills")
 
 
 def load_json(f):
@@ -108,7 +97,6 @@ def load_skill(recipe):
         path = os.path.join(SKILL_BASE, f"{skill_rel}/SKILL.md")
         if os.path.exists(path):
             return open(path, encoding="utf-8").read()
-    from .autocraft import SKILL_AUTO_DIR
     auto_path = f"{SKILL_AUTO_DIR}/{fn}.md"
     if os.path.exists(auto_path):
         return open(auto_path, encoding="utf-8").read()
