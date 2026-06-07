@@ -1,0 +1,20 @@
+{
+  "type": "object",
+  "properties": {
+    "keywords": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "提取的关键词列表，用于 Agent 路由匹配"
+    },
+    "intent": {
+      "type": "string",
+      "description": "用户意图的简短描述（如：税务咨询、农业评估、利润计算等）"
+    },
+    "topics": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "识别的主题领域"
+    }
+  },
+  "required": ["keywords", "intent"]
+}

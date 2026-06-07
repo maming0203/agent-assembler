@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agent-assembler"
-version = "0.2.0.dev1"
+version = "0.2.0"
 description = "Deterministic Context Assembly for AI Agents."
 readme = "README.md"
 requires-python = ">=3.8"
