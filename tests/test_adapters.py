@@ -25,7 +25,7 @@ def test_coze_export_basic():
     assert "bot_info" in result
     assert result["bot_info"]["name"] == "数据分析助手"
     assert result["bot_info"]["prompt_info"]["prompt"] != ""
-    assert result["model_info"]["model_name"] == "gpt-4o"
+    assert result["model_info"]["model_name"] == "coze-pro"
     assert result["metadata"]["source"] == "agent-assembler"
     print("✅ test_coze_export_basic passed")
 
