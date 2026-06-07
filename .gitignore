@@ -1,12 +1,24 @@
-.DS_Store
+# Python
 __pycache__/
+*.py[cod]
 *.egg-info/
 dist/
 build/
-.eggs/
-data/
-*.pyc
-.env
-venv/
-*.egg
 
+# Virtual env
+venv/
+.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Runtime (not source code)
+uploads/
+
+# Local config overrides
+.env.local
