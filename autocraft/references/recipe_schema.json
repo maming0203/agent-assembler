@@ -1,0 +1,79 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Agent Assembler Recipe",
+  "description": "Schema for auto-generated recipe JSON files in the AutoCraft pipeline.",
+  "type": "object",
+  "required": ["name", "trigger_keywords"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Human-readable name of the recipe.",
+      "minLength": 1
+    },
+    "trigger_keywords": {
+      "type": "array",
+      "description": "List of keyword strings that trigger this recipe.",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 1
+    },
+    "skills": {
+      "type": "array",
+      "description": "List of skill file names (without extension) referenced by this recipe.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "notes": {
+      "type": "string",
+      "description": "Optional free-form notes or description for the recipe."
+    },
+    "routing": {
+      "type": "object",
+      "description": "Optional routing configuration to direct queries to a specific agent.",
+      "properties": {
+        "agent_id": {
+          "type": "string",
+          "description": "The target agent ID for routing."
+        },
+        "fallback": {
+          "type": "string",
+          "description": "Fallback agent ID if primary is unavailable."
+        },
+        "priority": {
+          "type": "integer",
+          "description": "Routing priority level (higher = preferred)."
+        }
+      }
+    },
+    "engine_config": {
+      "type": "object",
+      "description": "Optional engine-level configuration for recipe execution.",
+      "properties": {
+        "model": {
+          "type": "string",
+          "description": "LLM model to use for this recipe."
+        },
+        "temperature": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 2,
+          "description": "Sampling temperature."
+        },
+        "max_tokens": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum output tokens."
+        },
+        "timeout": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Execution timeout in seconds."
+        }
+      }
+    }
+  },
+  "additionalProperties": false
+}
