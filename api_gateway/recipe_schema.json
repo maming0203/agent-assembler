@@ -48,6 +48,10 @@
         }
       }
     },
+    "script_path": {
+      "type": "string",
+      "description": "Path to a Python script to be executed by the Script Engine."
+    },
     "engine_config": {
       "type": "object",
       "description": "Optional engine-level configuration for recipe execution.",

@@ -13,13 +13,15 @@ if not os.path.exists(USAGE_FILE):
 
 def load_json(f):
     try:
-        return json.load(open(f))
+        with open(f, "r", encoding="utf-8") as fh:
+            return json.load(fh)
     except Exception:
         return {}
 
 
 def save_json(f, data):
-    json.dump(data, open(f, "w"), indent=2)
+    with open(f, "w", encoding="utf-8") as fh:
+        json.dump(data, fh, indent=2)
 
 
 def is_premium(r):
@@ -50,7 +52,8 @@ def find_recipe(query):
         for f in files:
             if f.endswith(".json"):
                 try:
-                    d = json.load(open(os.path.join(root, f)))
+                    with open(os.path.join(root, f), "r", encoding="utf-8") as fh:
+                        d = json.load(fh)
                     for kw in d.get("trigger_keywords", []):
                         if kw in query:
                             d["_source_premium"] = False
@@ -64,7 +67,8 @@ def find_recipe(query):
         for f in files:
             if f.endswith(".json"):
                 try:
-                    d = json.load(open(os.path.join(root, f)))
+                    with open(os.path.join(root, f), "r", encoding="utf-8") as fh:
+                        d = json.load(fh)
                     for kw in d.get("trigger_keywords", []):
                         if kw in query:
                             d["_source_premium"] = True

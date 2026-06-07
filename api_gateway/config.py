@@ -17,12 +17,11 @@ os.makedirs(AUTO_DIR, exist_ok=True)
 os.makedirs(SKILL_AUTO_DIR, exist_ok=True)
 
 INGESTOR_SCRIPT = os.path.expanduser("~/.hermes/recipes/scripts/universal_ingestor.py")
-DISPATCHER_SCRIPT = os.path.expanduser("~/.openclaw/wiki/main/00-文档库/01-Projects/Agent-Assembler/code/dispatcher.py")
-
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BASE_DIR = os.environ.get("ASSEMBLER_BASE_DIR", os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+PROJECT_ROOT = BASE_DIR
+DISPATCHER_SCRIPT = os.environ.get("ASSEMBLER_DISPATCHER", os.path.join(BASE_DIR, "code", "dispatcher.py"))
+MANIFESTS_DIR = os.environ.get("ASSEMBLER_MANIFESTS", os.path.join(BASE_DIR, "code", "manifests"))
 ROUTING_SCHEMA_PATH = os.path.join(PROJECT_ROOT, "routing_schema.json")
-
-MANIFESTS_DIR = os.path.expanduser("~/.openclaw/wiki/main/00-文档库/01-Projects/Agent-Assembler/code/manifests")
 
 UPLOAD_DIR = os.path.expanduser("~/Desktop/agent-assembler/uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)

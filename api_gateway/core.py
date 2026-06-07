@@ -67,7 +67,8 @@ def _load_agent_system_prompt(agent_id: str) -> str:
             continue
         filepath = os.path.join(MANIFESTS_DIR, f)
         try:
-            data = json.load(open(filepath, encoding="utf-8"))
+            with open(filepath, "r", encoding="utf-8") as fh:
+                data = json.load(fh)
             if data.get("id") == agent_id or f.replace(".json", "") == agent_id:
                 return data.get("system_prompt", data.get("description", ""))
         except Exception:
@@ -114,6 +115,11 @@ def call_agent(agent_id, msg):
 
 
 # Routes
+@app.get("/api/v1/health")
+async def health():
+    return {"status": "ok", "version": "2.1.0"}
+
+
 @app.get("/api/v1/login", response_model=LoginResponse)
 async def login(device_id: str = "test_device"):
     db = load_json(DB_FILE)
@@ -138,7 +144,8 @@ async def list_agents():
             continue
         filepath = os.path.join(MANIFESTS_DIR, f)
         try:
-            data = json.load(open(filepath, encoding="utf-8"))
+            with open(filepath, "r", encoding="utf-8") as fh:
+                data = json.load(fh)
             agents.append({
                 "id": data.get("id", f.replace(".json", "")),
                 "name": data.get("name", "Unknown Agent"),
