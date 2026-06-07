@@ -1,4 +1,4 @@
-"""Core Gateway module — FastAPI app, routes, LLM/agent calls."""
+"""Core Gateway module — FastAPI app, routes, DB ops, recipe matching, usage tracking."""
 import json
 import os
 import shlex
@@ -9,20 +9,28 @@ from typing import Optional
 from fastapi import FastAPI, Header, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
 
-from .autocraft import auto_craft_and_run
+from .autocraft import auto_craft_and_run, sanitize
+from .config import (
+    AUTO_DIR, DISPATCHER_SCRIPT, INGESTOR_SCRIPT, IS_CLOUD,
+    MANIFESTS_DIR, RECIPE_BASE, ROUTING_SCHEMA_PATH, SKILL_BASE,
+    SKILL_AUTO_DIR, UPLOAD_DIR, DB_FILE, USAGE_FILE,
+    AUTOCRAFT_REF_DIR, RECIPE_SCHEMA_PATH, SCRIPT_DIRS,
+)
 from .db import (
-    DB_FILE, USAGE_FILE, check_usage, find_recipe, get_user_id_by_key,
-    increment_usage, is_premium, load_json, load_skill, paywall_response,
-    save_json, SKILL_BASE,
+    check_usage, find_recipe, find_skill_in_directory,
+    get_user_id_by_key, increment_usage, is_premium,
+    load_json, load_skill, paywall_response, save_json,
 )
 from .multimodal import handle_upload, _ingestor_extract_keywords, _create_dispatcher
 from .script_engine import _extract_script_args, _run_script
 
-MANIFESTS_DIR = os.path.expanduser("~/.openclaw/wiki/main/00-文档库/01-Projects/Agent-Assembler/code/manifests")
-
+# App
 app = FastAPI(title="Agent Assembler Gateway", version="2.1.0")
+
+# Session
 SESSIONS = {}
 
+# Models
 class QueryRequest(BaseModel):
     query: str
 
@@ -41,6 +49,14 @@ class LoginResponse(BaseModel):
     status: str
     api_key: str
     user_id: str
+
+# SDK import
+try:
+    from agent_assembler import Assembler
+    from agent_assembler.adapters import CozeAdapter, QianwenAdapter
+    SDK_AVAILABLE = True
+except ImportError:
+    SDK_AVAILABLE = False
 
 
 def _load_agent_system_prompt(agent_id: str) -> str:
@@ -62,7 +78,7 @@ def _load_agent_system_prompt(agent_id: str) -> str:
 def _call_llm(messages: list) -> str:
     api_key = os.environ.get("OPENAI_API_KEY", "") or os.environ.get("DASHSCOPE_API_KEY", "")
     if not api_key:
-        return "LLM API key not configured (set OPENAI_API_KEY or DASHSCOPE_API_KEY)."
+        return "LLM API key not configured."
     api_base = os.environ.get("OPENAI_API_BASE", "https://api.openai.com/v1")
     model = os.environ.get("CHAT_MODEL_NAME", os.environ.get("MODEL_NAME", "qwen-plus"))
     try:
@@ -97,13 +113,7 @@ def call_agent(agent_id, msg):
         return f"超时或错误: {str(e)}"
 
 
-try:
-    from agent_assembler.adapters import CozeAdapter, QianwenAdapter
-    SDK_AVAILABLE = True
-except ImportError:
-    SDK_AVAILABLE = False
-
-
+# Routes
 @app.get("/api/v1/login", response_model=LoginResponse)
 async def login(device_id: str = "test_device"):
     db = load_json(DB_FILE)
@@ -151,6 +161,7 @@ async def chat(req: ChatRequest):
     intent = extracted.get("intent", "未知")
     topics = extracted.get("topics", [])
     routing_result = {"status": "unmatched", "message": "未找到匹配的 Agent"}
+    agent_name = None
     dispatcher = _create_dispatcher()
     if dispatcher is not None:
         try:
@@ -196,16 +207,17 @@ async def chat(req: ChatRequest):
         }
     elif routing_result.get("status") == "conflict":
         candidates = routing_result.get("candidates", [])
+        candidate_names = [c.get("name", "Unknown") for c in candidates]
         return {
-            "status": "conflict",
-            "message": f"多个 Agent 匹配: {', '.join(c.get('name', 'Unknown') for c in candidates)}",
-            "candidates": [c.get("name", "Unknown") for c in candidates],
+            "status": "conflict", "message": "多个 Agent 匹配: " + ", ".join(candidate_names),
+            "candidates": candidate_names,
             "extracted": {"keywords": keywords, "intent": intent, "topics": topics},
         }
-    return {
-        "status": "unmatched", "message": "暂未找到匹配的 Agent，已为您记录需求",
-        "extracted": {"keywords": keywords, "intent": intent, "topics": topics},
-    }
+    else:
+        return {
+            "status": "unmatched", "message": "暂未找到匹配的 Agent，已为您记录需求",
+            "extracted": {"keywords": keywords, "intent": intent, "topics": topics},
+        }
 
 
 @app.post("/api/v1/run")
@@ -223,8 +235,9 @@ async def run_recipe(req: QueryRequest, x_api_key: str = Header(None)):
         return await auto_craft_and_run(req.query, user_id)
     if is_premium(recipe) and user_plan == "free":
         return paywall_response("Premium 配方需要升级解锁。")
-    if user_plan == "free" and check_usage(user_id) >= 3:
-        return paywall_response("今日免费额度已用完。")
+    if user_plan == "free":
+        if check_usage(user_id) >= 3:
+            return paywall_response("今日免费额度已用完。")
     increment_usage(user_id)
     script_path = recipe.get("script_path") or recipe.get("script") or recipe.get("code")
     if script_path:
@@ -233,27 +246,33 @@ async def run_recipe(req: QueryRequest, x_api_key: str = Header(None)):
         if success:
             skill_content = load_skill(recipe)
             agent_query = (
-                f"You are an assistant. A calculation tool produced this result.\n"
-                f"Follow this skill logic:\n{skill_content}\n\nTOOL OUTPUT:\n{script_output}\n\n"
-                f"User Query: {req.query}\nExplain clearly. Do NOT recalculate."
+                f"You are an assistant. A calculation/processing tool has produced the following result.\n"
+                f"Strictly follow this skill logic for context:\n{skill_content}\n\n"
+                f"TOOL OUTPUT:\n{script_output}\n\n"
+                f"User Query: {req.query}\n\n"
+                f"Explain this result to the user in a clear, professional manner. "
+                f"Do NOT recalculate."
             )
         else:
-            print(f"[Script Engine] Script failed, fallback to LLM: {script_output}")
+            print(f"[Script Engine] Script failed, falling back to LLM: {script_output}")
             skill_content = load_skill(recipe)
             agent_query = (
-                f"Follow this skill logic:\n{skill_content}\n\nUser Query: {req.query}\n"
-                f"Note: Script failed: {script_output}. Answer using your knowledge."
+                f"Strictly follow this skill logic:\n{skill_content}\n\n"
+                f"User Query: {req.query}\n\n"
+                f"Note: Script failed: {script_output}. Please answer using your knowledge."
             )
     else:
         skill_content = load_skill(recipe)
-        agent_query = f"Follow this skill logic:\n{skill_content}\n\nUser Query: {req.query}"
-    routing_id = recipe.get("routing") or "legal-agent"
+        agent_query = f"Strictly follow this skill logic:\n{skill_content}\n\nUser Query: {req.query}"
+    routing_id = recipe.get("routing")
+    if not routing_id:
+        routing_id = "legal-agent"
     result = call_agent(routing_id, agent_query)
     return {"status": "success", "recipe_used": recipe.get("name", recipe.get("filename", "unknown")), "report": result}
 
 
 @app.post("/api/v1/export")
-async def export_agent(req: AgentExportRequest, x_api_key: str = Header(None)):
+async def export_agent_endpoint(req: AgentExportRequest, x_api_key: str = Header(None)):
     if not x_api_key:
         raise HTTPException(401, "Missing API Key")
     user_id = get_user_id_by_key(x_api_key)
