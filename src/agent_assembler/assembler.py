@@ -4,6 +4,8 @@ import json
 import re
 from typing import List, Optional, Dict
 from .recipe import Recipe
+from .agent import Agent, AgentSpec
+from .sidecar.base import SidecarBus
 
 class Assembler:
     """The core engine of Agent Assembler."""
@@ -83,3 +85,11 @@ class Assembler:
             "skills_loaded": [s.name for s in recipe.skill_refs],
             "system_prompt": system_prompt
         }
+
+    def assemble_agent(self, spec: AgentSpec) -> Agent:
+        """根据 AgentSpec 组装并返回可执行的 Agent 实例。
+
+        复用现有的 assemble 逻辑加载配方和技能，然后包装为 Agent。
+        """
+        agent = Agent(spec, assembler=self)
+        return agent
