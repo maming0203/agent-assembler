@@ -22,3 +22,12 @@ uploads/
 
 # Local config overrides
 .env.local
+
+# Virtual environment
+.venv/
+
+# ===========================================
+# 配方是商业资产，严禁开源到 GitHub（铁律）
+# ===========================================
+~/Desktop/配方/
+~/.hermes/recipes/
