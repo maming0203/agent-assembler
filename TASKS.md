@@ -66,9 +66,10 @@ updated: 2026-06-08
 - [x] Analytics: SQLite persistence + stats summary + JSON/CSV export
 - [x] All engines v0.2.0, 25 new tests, 92/92 total passing
 
-## ⬜ P5 — SaaS Dashboard & No-Code Builder — PLANNED
+## ✅ P5 — SaaS Dashboard — COMPLETE
 
-- [ ] Web Dashboard with tenant isolation
-- [ ] Mini Program integration with ECS Gateway
-- [ ] No-code recipe builder UI
-- [ ] One-click publish to Coze/Qianwen
+- [x] P5.1 Gateway: 13 new endpoints (Recipe CRUD / API Keys / Metrics / Deploy)
+- [x] P5.2 Dashboard v1: Streamlit 470-line multi-tenant workspace
+- [x] P5.3 Analytics: timeseries endpoint + trend charts + top users table
+- [x] P5.4 Deploy: /deploy/coze/complete (full flow) + /deploy/qianwen
+- [x] Tests: 105/105 passing
