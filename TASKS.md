@@ -73,3 +73,11 @@ updated: 2026-06-08
 - [x] P5.3 Analytics: timeseries endpoint + trend charts + top users table
 - [x] P5.4 Deploy: /deploy/coze/complete (full flow) + /deploy/qianwen
 - [x] Tests: 105/105 passing
+
+## ✅ AutoCraft v2 — COMPLETE
+
+- [x] Schema path fix: autocraft/references/ → api_gateway/recipe_schema.json (2392 chars)
+- [x] Skill format: .py → .md (角色定义/工作流程/输出格式/约束)
+- [x] Validation: trigger_keywords >= 2, name required, skills string-only
+- [x] Auto-fix: missing fields auto-filled and retry
+- [x] Tests: 110/110 passing (+5 autocraft fix tests)
