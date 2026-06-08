@@ -1,12 +1,11 @@
-__version__ = "0.3.0"
-
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 from .assembler import Assembler
 from .agent import Agent, AgentSpec
 from .recipe import Recipe
 from .registry import RecipeRegistry, RecipeVersion
 from .sidecar import SidecarBase, SidecarBus, DecisionEngine, Simulator, Analytics
+from .llm import LLMClient, LLMResponse
 
 __all__ = [
     "__version__",
@@ -21,4 +20,6 @@ __all__ = [
     "DecisionEngine",
     "Simulator",
     "Analytics",
+    "LLMClient",
+    "LLMResponse",
 ]

@@ -6,9 +6,11 @@ import time
 from .config import DB_FILE, USAGE_FILE, RECIPE_BASE, SKILL_BASE, SKILL_AUTO_DIR, IS_CLOUD
 
 if not os.path.exists(DB_FILE):
-    open(DB_FILE, "w").write("{}")
+    with open(DB_FILE, "w", encoding="utf-8") as fh:
+        fh.write("{}")
 if not os.path.exists(USAGE_FILE):
-    open(USAGE_FILE, "w").write("{}")
+    with open(USAGE_FILE, "w", encoding="utf-8") as fh:
+        fh.write("{}")
 
 
 def load_json(f):
@@ -100,13 +102,16 @@ def load_skill(recipe):
     if IS_CLOUD and skill_rel:
         path = os.path.join(SKILL_BASE, f"{skill_rel}/SKILL.md")
         if os.path.exists(path):
-            return open(path, encoding="utf-8").read()
+            with open(path, encoding="utf-8") as fh:
+                return fh.read()
     auto_path = f"{SKILL_AUTO_DIR}/{fn}.md"
     if os.path.exists(auto_path):
-        return open(auto_path, encoding="utf-8").read()
+        with open(auto_path, encoding="utf-8") as fh:
+            return fh.read()
     found = find_skill_in_directory(SKILL_BASE, fn)
     if found:
-        return open(found, encoding="utf-8").read()
+        with open(found, encoding="utf-8") as fh:
+            return fh.read()
     return "Provide expert advice based on general knowledge."
 
 

@@ -2,18 +2,20 @@
 import os
 import json
 import re
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 from .recipe import Recipe
 from .agent import Agent, AgentSpec
 from .sidecar.base import SidecarBus
+from .llm import LLMClient
 
 class Assembler:
     """The core engine of Agent Assembler."""
     
-    def __init__(self, recipes_dir: str, skills_dir: str):
+    def __init__(self, recipes_dir: str, skills_dir: str, llm_client: Any | None = None):
         self.recipes_dir = os.path.abspath(recipes_dir)
         self.skills_dir = os.path.abspath(skills_dir)
         self.recipes: List[Recipe] = []
+        self._llm = llm_client  # 可选 LLM 客户端，会注入到 assemble 的 Agent
         
         self._load_recipes()
 
@@ -89,7 +91,47 @@ class Assembler:
     def assemble_agent(self, spec: AgentSpec) -> Agent:
         """根据 AgentSpec 组装并返回可执行的 Agent 实例。
 
-        复用现有的 assemble 逻辑加载配方和技能，然后包装为 Agent。
+        1. 根据 spec.recipes 加载配方和技能
+        2. 构建 system_prompt
+        3. 注入 LLM client（如有）
+        4. 返回 Agent
         """
-        agent = Agent(spec, assembler=self)
+        # 加载配方和技能 → 构建 system_prompt
+        system_prompt_parts: list[str] = []
+        
+        if spec.system_prompt:
+            system_prompt_parts.append(spec.system_prompt)
+        elif spec.recipes or spec.skills:
+            system_prompt_parts.append(f"# Role\nYou are {spec.name}. {spec.role}")
+            system_prompt_parts.append("## Skills & Rules")
+            
+            for recipe_name in spec.recipes:
+                recipe = self._find_recipe(recipe_name)
+                if recipe:
+                    recipe.load_skills(self.skills_dir)
+                    for skill in recipe.skill_refs:
+                        system_prompt_parts.append(f"### Skill: {skill.name}\n{skill.content}")
+                else:
+                    system_prompt_parts.append(f"⚠️ Recipe not found: {recipe_name}")
+        
+        spec.system_prompt = "\n\n".join(system_prompt_parts)
+        
+        # 创建 Agent，注入 LLM client
+        agent = Agent(spec, llm_client=self._llm)
+        
+        # 挂载 Sidecar Bus（如 spec 指定）
+        if spec.sidecars:
+            bus = SidecarBus()
+            for sc_name in spec.sidecars:
+                bus.attach(sc_name)
+            agent.add_sidecar("bus", bus)
+        
         return agent
+    
+    def _find_recipe(self, name: str) -> Optional[Recipe]:
+        """按名称查找配方（模糊匹配）。"""
+        name_lower = name.lower()
+        for recipe in self.recipes:
+            if name_lower in recipe.name.lower() or recipe.name.lower() in name_lower:
+                return recipe
+        return None
