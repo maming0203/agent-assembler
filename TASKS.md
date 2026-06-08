@@ -59,6 +59,13 @@ updated: 2026-06-08
 - [x] __init__.py: v0.4.0, exports LLMClient + LLMResponse (14 classes)
 - [x] 13 new tests, 74/74 total passing
 
+## ✅ Sidecar Engines Hardening — COMPLETE
+
+- [x] DecisionEngine: rule engine (regex/keyword/length) + LLM semantic verdict
+- [x] Simulator: 3 built-in scenes (price negotiation/contract review/customer complaint)
+- [x] Analytics: SQLite persistence + stats summary + JSON/CSV export
+- [x] All engines v0.2.0, 25 new tests, 92/92 total passing
+
 ## ⬜ P5 — SaaS Dashboard & No-Code Builder — PLANNED
 
 - [ ] Web Dashboard with tenant isolation
