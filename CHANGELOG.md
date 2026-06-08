@@ -1,5 +1,38 @@
 # Agent Assembler Changelog
 
+## 2026-06-08 — v0.3.0: SDK Hardening + Recipe Registry
+
+### P4 — SDK Hardening
+- **Agent class + AgentSpec**: Dataclass-driven Agent blueprint (name, role, system_prompt, recipes, skills, sidecars, platform, model, config)
+- **assemble_agent()**: Spec → Agent factory method on Assembler
+- **Sidecar Bus skeleton**: SidecarBase, SidecarBus, DecisionEngine, Simulator, Analytics
+- **Version**: `__version__ = "0.3.0"` in `__init__.py`
+- **Exports**: 12 public classes (Agent, AgentSpec, Assembler, Recipe, RecipeRegistry, RecipeVersion, SidecarBase, SidecarBus, DecisionEngine, Simulator, Analytics)
+- **Tests**: 40/40 passing (16 new + 24 existing)
+
+### P4.3 — Recipe Registry
+- **RecipeRegistry**: Search by keyword/tag, tag-based filtering, import/export, version management
+- **RecipeVersion**: Semantic version tracking for recipes
+- **Git**: 7f9ee06
+
+### P2 — Bug Fixes (5 bugs)
+- Schema: Added `script_path` field to recipe_schema.json
+- Paths: Hard-coded paths in config.py → env-var first
+- Resource leaks: 5x `json.load(open())` → `with open()` (db.py 3处 + core.py 2处)
+- AutoCraft: `_generate_skill_py()` auto-generates .py skill files with recipes
+- Tests: +10 gateway tests + `/api/v1/health` endpoint, 24/24 pytest green
+
+### P1 — Architecture Refactoring
+- `api_gateway.py` (1188行) → `api_gateway/` package (6 modules, all <300 lines)
+- Modules: config.py, core.py, multimodal.py, autocraft.py, script_engine.py, db.py
+- 14/14 pytest passing
+
+### P0 — Core Stabilization
+- Synced latest gateway + autocraft + multimodal support
+- Git: d195c21
+
+---
+
 ## 2026-06-03 - MVP 全链路闭环与体验升级
 
 ### 🚀 核心里程碑

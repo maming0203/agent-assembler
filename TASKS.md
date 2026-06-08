@@ -1,33 +1,57 @@
 ---
 title: Agent Assembler Tasks
 status: active
+updated: 2026-06-08
 ---
 
 # Project Tasks: Agent Assembler
 
-## ✅ Phase 1 (SDK Decoupling) — COMPLETE
+## ✅ P0 — Core Stabilization — COMPLETE
 
-- [x] **1.1 Structure Refactoring**: Move to `src/` layout.
-- [x] **1.2 Core Logic Migration**: Assembler, Recipe, SkillRef classes.
-- [x] **1.3 Unit Testing**: 14 tests passing (7 core + 7 adapter).
-- [x] **1.4 Alpha Release**: `agent_assembler-0.2.0.dev1` wheel built & verified.
+- [x] Sync latest gateway + autocraft + multimodal support
+- [x] E2E pipeline: Mini Program → HTTPS Gateway → Recipe Routing → Skill Load → Agent Execute
 
-## ✅ Phase 2 (Adapters) — COMPLETE
+## ✅ P1 — Architecture Refactoring — COMPLETE
 
-- [x] **2.1 Adapter Interface**: `BaseAdapter` abstract class.
-- [x] **2.2 Coze Adapter**: Recipe → Coze DSL, JIT skill injection, validation.
-- [x] **2.3 Qianwen Adapter**: Recipe → 千问/百炼格式, 中文 Prompt 优化.
-- [x] **2.4 Gateway Integration**: `/api/v1/export` endpoint on ECS.
+- [x] `api_gateway.py` (1188 lines) → `api_gateway/` package (6 modules, all <300 lines)
+- [x] Modules: config.py, core.py, multimodal.py, autocraft.py, script_engine.py, db.py
+- [x] 14/14 pytest passing
 
-## 🚧 Phase 3 (SaaS) — IN PROGRESS
+## ✅ P2 — Bug Fixes — COMPLETE
 
-- [x] **3.1 Web Dashboard**: Streamlit frontend with tenant isolation.
-- [ ] **3.2 Mini Program Integration**: Connect `miniprogram-recipes` to ECS Gateway.
-- [ ] **3.3 Core Loop Verification**: `/api/v1/run` end-to-end (waiting for OpenClaw activation).
+- [x] Schema: `script_path` field added to recipe_schema.json
+- [x] Paths: Hard-coded paths → env-var first (config.py)
+- [x] Resource leaks: `json.load(open())` → `with open()` (5 locations)
+- [x] AutoCraft: `_generate_skill_py()` generates .py skill files alongside recipes
+- [x] Tests: +10 gateway tests + `/api/v1/health`, 24/24 green
 
-## ⬜ Phase 4 (Distribution) — PLANNED
+## ✅ P3 — Documentation Alignment — IN PROGRESS
 
-- [ ] **4.1 Recipe Library**: Curate 5-10 high-quality seed scenarios.
-- [ ] **4.2 Auto-Craft Polish**: Improve recipe generation success rate.
-- [ ] **4.3 Coze Deployment**: One-click publish from Dashboard to Coze API channel.
-- [ ] **4.4 PyPI Release**: Publish `agent-assembler` package.
+- [x] README.md: version v0.3.0, roadmap updated, code examples expanded
+- [x] CHANGELOG.md: full P0→P4.3 history
+- [x] TASKS.md: actual status aligned
+- [x] `__init__.py`: `__version__ = "0.3.0"` added
+- [ ] Wiki docs aligned with code (产品开发手册, etc.)
+- [ ] docs/SPEC.md updated
+
+## ✅ P4 — SDK Hardening — COMPLETE
+
+- [x] Agent class + AgentSpec dataclass (agent.py, 159 lines)
+- [x] `assemble_agent(spec: AgentSpec) → Agent` on Assembler
+- [x] Sidecar Bus: SidecarBase, SidecarBus, DecisionEngine, Simulator, Analytics
+- [x] `__init__.py` exports: 12 public classes
+- [x] 40/40 pytest passing (16 new + 24 existing)
+
+## ✅ P4.3 — Recipe Registry — COMPLETE
+
+- [x] RecipeRegistry: search by keyword/tag, tag filtering, import/export
+- [x] RecipeVersion: semantic version tracking
+- [x] registry.py (271 lines)
+- [x] recipe_template.py (221 lines)
+
+## ⬜ P5 — SaaS Dashboard & No-Code Builder — PLANNED
+
+- [ ] Web Dashboard with tenant isolation
+- [ ] Mini Program integration with ECS Gateway
+- [ ] No-code recipe builder UI
+- [ ] One-click publish to Coze/Qianwen

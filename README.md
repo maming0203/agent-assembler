@@ -4,7 +4,7 @@
 > Deterministic Context Assembly for Multi-Agent Distribution Network.
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-v0.2.0-blue.svg" alt="v0.2.0 Released">
+  <img src="https://img.shields.io/badge/version-v0.3.0-blue.svg" alt="v0.3.0 Released">
   <img src="https://img.shields.io/pypi/v/agent-assembler.svg" alt="PyPI">
 </p>
 
@@ -60,11 +60,19 @@ pip install agent-assembler
 ```
 
 ```python
-from agent_assembler import Assembler
+from agent_assembler import Assembler, Agent, AgentSpec, SidecarBus
 
+# Quick JIT assembly
 assembler = Assembler(recipes_dir="./recipes", skills_dir="./skills")
 result = assembler.assemble("Analyze this excel file")
 print(result['system_prompt'])
+
+# Spec-driven Agent assembly
+spec = AgentSpec(name="Tax Advisor", role="财务顾问", recipes=["tax_consulting"])
+agent = assembler.assemble_agent(spec)
+
+# Sidecar Bus (pluggable capabilities)
+bus = SidecarBus(decision_engine=True, simulator=True, analytics=True)
 ```
 
 ---
@@ -90,9 +98,12 @@ Our architecture is **Domain-Agnostic**. It works anywhere.
 | Phase | Goal | Status |
 | :--- | :--- | :--- |
 | **P0** | Core Stabilization & Validation | ✅ Done |
-| **P1** | SDK Decoupling & Standardization | 🚧 Active |
-| **P2** | Multi-Platform Adapters | ⬜ Planned |
-| **P3** | SaaS Dashboard & No-Code Builder | ⬜ Planned |
+| **P1** | Architecture Refactoring (api_gateway → modular) | ✅ Done |
+| **P2** | Bug Fixes (schema, paths, resource leaks, test coverage) | ✅ Done |
+| **P3** | Documentation Alignment | 🚧 Active |
+| **P4** | SDK Hardening (Agent/AgentSpec/Sidecar Bus) | ✅ Done |
+| **P4.3** | Recipe Registry (search, tags, version management) | ✅ Done |
+| **P5** | SaaS Dashboard & No-Code Builder | ⬜ Planned |
 
 ---
 
