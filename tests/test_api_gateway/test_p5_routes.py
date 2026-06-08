@@ -42,45 +42,46 @@ def test_create_recipe():
     """创建新配方。"""
     import tempfile, os
     from api_gateway.config import RECIPE_BASE
-    
+
     # 创建临时目录用于测试
     test_dir = tempfile.mkdtemp()
     original = RECIPE_BASE
-    
+
     # 用临时目录替换
     from api_gateway import config
     config.RECIPE_BASE = test_dir
-    
-    # Also update p5_routes
-    from api_gateway import p5_routes
-    p5_routes.RECIPE_BASE = test_dir
-    
+
+    # Patch routes_recipes module-level RECIPE_BASE (where _load_recipes reads from)
+    from api_gateway import routes_recipes
+    routes_recipes.RECIPE_BASE = test_dir
+
     resp = client.post("/api/v1/recipes", json={
         "name": "test-recipe-p5",
         "trigger_keywords": ["test", "p5"],
         "skills": [],
         "notes": "P5 测试配方",
     })
-    
+
     assert resp.status_code == 201
     data = resp.json()
     assert data["status"] == "created"
     assert data["name"] == "test-recipe-p5"
-    
+
     # 清理
     config.RECIPE_BASE = original
-    p5_routes.RECIPE_BASE = original
+    routes_recipes.RECIPE_BASE = original
 
 def test_get_created_recipe():
     """获取刚创建的配方。"""
     import tempfile, os
-    from api_gateway import config, p5_routes
-    
+    from api_gateway import config
+    from api_gateway import routes_recipes
+
     test_dir = tempfile.mkdtemp()
     original = config.RECIPE_BASE
     config.RECIPE_BASE = test_dir
-    p5_routes.RECIPE_BASE = test_dir
-    
+    routes_recipes.RECIPE_BASE = test_dir
+
     # 先创建
     client.post("/api/v1/recipes", json={
         "name": "test-get-recipe",
@@ -88,15 +89,15 @@ def test_get_created_recipe():
         "skills": [],
         "notes": "test",
     })
-    
+
     # 再获取
     resp = client.get("/api/v1/recipes/test-get-recipe")
     assert resp.status_code == 200
     data = resp.json()
     assert data["name"] == "test-get-recipe"
-    
+
     config.RECIPE_BASE = original
-    p5_routes.RECIPE_BASE = original
+    routes_recipes.RECIPE_BASE = original
 
 
 # ──────────────────────────────────────────
@@ -119,7 +120,7 @@ def test_list_api_keys():
     """列出 API Keys。"""
     # 先创建一个
     client.post("/api/v1/apikeys", json={"name": "list-test", "plan": "free"})
-    
+
     resp = client.get("/api/v1/apikeys")
     assert resp.status_code == 200
     data = resp.json()
@@ -132,12 +133,12 @@ def test_revoke_api_key():
     resp = client.post("/api/v1/apikeys", json={"name": "revoke-test", "plan": "free"})
     key = resp.json()["key"]
     prefix = key[:8]
-    
+
     # 撤销
     resp = client.delete(f"/api/v1/apikeys/{prefix}")
     assert resp.status_code == 200
     assert resp.json()["status"] == "revoked"
-    
+
     # 再撤销 → 404
     resp = client.delete(f"/api/v1/apikeys/{prefix}")
     assert resp.status_code == 404
