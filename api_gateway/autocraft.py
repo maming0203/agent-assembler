@@ -314,7 +314,7 @@ async def auto_craft_and_run(query, user_id, max_retries: int = 3):
         print(f"[AutoCraft] Recipe '{recipe_name}' validated successfully on attempt {attempt}")
         return {
             "status": "auto_generated",
-            "message": "已现场生成配方并执行",
+            "message": "已现场生成配方（脚本执行需手动部署）",
             "report": result,
             "recipe": recipe_name,
             "recipe_path": recipe_path,
