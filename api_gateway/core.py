@@ -27,6 +27,10 @@ from .script_engine import _extract_script_args, _run_script
 # App
 app = FastAPI(title="Agent Assembler Gateway", version="2.1.0")
 
+# P5 Routes
+from .p5_routes import router as p5_router
+app.include_router(p5_router)
+
 # Session
 SESSIONS = {}
 
