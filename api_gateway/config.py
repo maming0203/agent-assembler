@@ -12,6 +12,11 @@ else:
     SKILL_BASE = os.path.expanduser("~/.hermes/skills")
     AUTO_DIR = os.path.expanduser("~/Desktop/配方/AutoCreated")
 
+# P6: Runtime Discipline Layer
+HERMES_RECIPES = os.path.expanduser("~/.hermes/recipes")
+VAULT_WRITE_SCRIPT = os.path.expanduser("~/.openclaw/workspace/scripts/vault_write.py")
+SKILL_SIZE_LIMIT = 4096  # 4KB hard limit
+
 SKILL_AUTO_DIR = os.path.join(AUTO_DIR, "Skills")
 os.makedirs(AUTO_DIR, exist_ok=True)
 os.makedirs(SKILL_AUTO_DIR, exist_ok=True)
@@ -20,7 +25,8 @@ BASE_DIR = os.environ.get("ASSEMBLER_BASE_DIR", os.path.dirname(os.path.dirname(
 PROJECT_ROOT = BASE_DIR
 INGESTOR_SCRIPT = os.path.join(PROJECT_ROOT, "api_gateway", "universal_ingestor.py")
 DISPATCHER_SCRIPT = os.environ.get("ASSEMBLER_DISPATCHER", os.path.join(BASE_DIR, "code", "dispatcher.py"))
-MANIFESTS_DIR = os.environ.get("ASSEMBLER_MANIFESTS", os.path.join(BASE_DIR, "code", "manifests"))
+MANIFESTS_DIR = os.environ.get("ASSEMBLER_MANIFESTS", RECIPE_BASE)
+# MANIFESTS_DIR 现在指向配方根目录，Gateway 将递归扫描所有 manifest.json
 ROUTING_SCHEMA_PATH = os.path.join(PROJECT_ROOT, "api_gateway", "routing_schema.json")
 
 

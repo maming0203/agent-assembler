@@ -36,18 +36,36 @@ def _load_recipes() -> list[dict[str, Any]]:
     recipes = []
     if not os.path.exists(RECIPE_BASE):
         return recipes
-    for root, _, files in os.walk(RECIPE_BASE):
-        if "Premium_Assets" in root:
-            continue
+    # 系统文件（不是 recipe，必须跳过）
+    SYSTEM_FILES = {'pot.json', 'schema.json', 'index.json', 'recipe.json'}
+    # 需要排除的目录
+    EXCLUDE_DIRS = {'AutoCreated', 'scripts', 'schemas', 'autocraft', 'mined'}
+
+    for root, dirs, files in os.walk(RECIPE_BASE):
+        # 排除特定目录
+        dirs[:] = [d for d in dirs if d not in EXCLUDE_DIRS]
+
         for f in files:
             if not f.endswith(".json"):
+                continue
+            if f in SYSTEM_FILES:
                 continue
             try:
                 with open(os.path.join(root, f), "r", encoding="utf-8") as fh:
                     data = json.load(fh)
+
+                # manifest.json 是 Agent 系统的内部定义，不是面向用户的 recipe
+                if f == "manifest.json":
+                    continue
+
+                data["_name"] = data.get("name", f.replace(".json", ""))
+                # 平格式 recipe 可能用 triggers 而非 trigger_keywords
+                if "trigger_keywords" not in data and "triggers" in data:
+                    data["trigger_keywords"] = data.pop("triggers")
+
                 data["_file"] = f
                 data["_path"] = os.path.join(root, f)
-                data["_is_premium"] = False
+                data["_is_premium"] = "Premium" in root
                 recipes.append(data)
             except Exception:
                 continue
@@ -55,10 +73,22 @@ def _load_recipes() -> list[dict[str, Any]]:
 
 def _find_recipe_file(name: str) -> Optional[str]:
     name_lower = name.lower()
-    for root, _, files in os.walk(RECIPE_BASE):
+    for root, dirs, files in os.walk(RECIPE_BASE):
+        # 跳过排除目录
+        dirs[:] = [d for d in dirs if d not in {'AutoCreated', 'scripts', 'schemas', 'autocraft', 'mined'}]
         for f in files:
-            if f.endswith(".json") and (name_lower in f.lower() or f.lower() in name_lower):
-                return os.path.join(root, f)
+            if not f.endswith(".json"):
+                continue
+            if f in {'pot.json', 'schema.json', 'index.json', 'recipe.json'}:
+                continue
+            try:
+                with open(os.path.join(root, f), "r", encoding="utf-8") as fh:
+                    data = json.load(fh)
+                rname = (data.get("_name") or data.get("name") or "").lower()
+                if name_lower in rname or rname in name_lower or name_lower in f.lower() or f.lower() in name_lower:
+                    return os.path.join(root, f)
+            except Exception:
+                continue
     return None
 
 
@@ -72,9 +102,12 @@ async def list_recipes(x_api_key: str = Header(None)):
     return {
         "total": len(recipes),
         "recipes": [
-            {"name": r.get("name", "Unknown"), "keywords": r.get("trigger_keywords", []),
-             "skills": r.get("skills", []), "notes": r.get("notes", ""),
-             "file": r.get("_file", ""), "is_premium": r.get("_is_premium", False)}
+            {"name": r.get("_name") or r.get("name", "Unknown"),
+             "keywords": r.get("trigger_keywords", []),
+             "skills": r.get("skills", []),
+             "notes": r.get("notes", ""),
+             "file": r.get("_file", ""),
+             "is_premium": r.get("_is_premium", False)}
             for r in recipes
         ],
     }
@@ -86,11 +119,13 @@ async def search_recipes(q: str, x_api_key: str = Header(None)):
     matches = []
     for r in recipes:
         keywords = [k.lower() for k in r.get("trigger_keywords", [])]
-        name = r.get("name", "").lower()
+        name = (r.get("_name") or r.get("name", "")).lower()
         notes = r.get("notes", "").lower()
         if q_lower in name or any(q_lower in k for k in keywords) or q_lower in notes:
-            matches.append({"name": r.get("name"), "keywords": r.get("trigger_keywords", []),
-                           "notes": r.get("notes", ""), "file": r.get("_file", "")})
+            matches.append({"name": r.get("_name") or r.get("name"),
+                           "keywords": r.get("trigger_keywords", []),
+                           "notes": r.get("notes", ""),
+                           "file": r.get("_file", "")})
     return {"query": q, "matches": len(matches), "recipes": matches}
 
 @router.get("/recipes/{recipe_name}")

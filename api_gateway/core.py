@@ -1,8 +1,6 @@
 """Core Gateway module — FastAPI app, routes, DB ops, recipe matching, usage tracking."""
 import json
 import os
-import shlex
-import subprocess
 import time
 from typing import Optional
 
@@ -23,6 +21,8 @@ from .db import (
 )
 from .multimodal import handle_upload, _ingestor_extract_keywords, _create_dispatcher
 from .script_engine import _extract_script_args, _run_script
+from .discipline import discipline_enforce_prompt, check_skill_size_inline
+from .config import SKILL_BASE as DISC_SKILL_BASE
 
 # App
 app = FastAPI(title="Agent Assembler Gateway", version="2.1.0")
@@ -98,25 +98,17 @@ def _call_llm(messages: list) -> str:
         return f"LLM call failed: {str(e)}"
 
 
-def call_agent(agent_id, msg):
-    try:
-        safe_msg = shlex.quote(msg)
-        cmd_str = f"openclaw agent --agent {agent_id} --message {safe_msg} --json --timeout 120"
-        res = subprocess.run(cmd_str, shell=True, capture_output=True, text=True, timeout=130)
-        stdout = res.stdout
-        if "{" in stdout:
-            json_str = stdout[stdout.find("{"):]
-            try:
-                data = json.loads(json_str)
-                payloads = data.get("result", {}).get("payloads", [])
-                if payloads and "text" in payloads[0]:
-                    return payloads[0]["text"]
-            except json.JSONDecodeError:
-                pass
-        err_msg = res.stderr.strip()[:200] if res.stderr else "Unknown error"
-        return f"执行失败: {err_msg}"
-    except Exception as e:
-        return f"超时或错误: {str(e)}"
+def call_agent(routing_id, msg):
+    """Direct LLM call — decoupled from OpenClaw. Uses routing_id to select system prompt."""
+    system_prompt = _load_agent_system_prompt(routing_id)
+    if not system_prompt:
+        # Fallback: use routing_id as role hint
+        system_prompt = f"You are a specialized assistant for {routing_id}. Provide expert, actionable advice."
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": msg},
+    ]
+    return _call_llm(messages)
 
 
 # Routes
@@ -141,28 +133,35 @@ async def upload_file(file: UploadFile = File(...), file_type: str = Form(None))
 
 @app.get("/api/v1/agents")
 async def list_agents():
+    """递归扫描 MANIFESTS_DIR 下所有 manifest.json"""
     agents = []
     if not os.path.exists(MANIFESTS_DIR):
         return {"agents": []}
-    for f in os.listdir(MANIFESTS_DIR):
-        if not f.endswith(".json"):
-            continue
-        filepath = os.path.join(MANIFESTS_DIR, f)
-        try:
-            with open(filepath, "r", encoding="utf-8") as fh:
-                data = json.load(fh)
-            agents.append({
-                "id": data.get("id", f.replace(".json", "")),
-                "name": data.get("name", "Unknown Agent"),
-                "description": data.get("description", ""),
-                "tags": data.get("tags", []),
-            })
-        except Exception:
-            continue
+
+    # 递归查找所有 manifest.json
+    for root, dirs, files in os.walk(MANIFESTS_DIR):
+        # 跳过隐藏目录和特殊目录
+        dirs[:] = [d for d in dirs if not d.startswith('.') and d not in ['AutoCreated', 'scripts', 'schemas', 'autocraft']]
+        
+        for f in files:
+            if f == "manifest.json":
+                fp = os.path.join(root, f)
+                try:
+                    with open(fp) as fh:
+                        data = json.load(fh)
+                    # 只加载 type=agent 或没有 type 字段的
+                    if data.get("type", "agent") != "infrastructure":
+                        agents.append({
+                            "id": data.get("id", os.path.basename(root)),
+                            "name": data.get("name", ""),
+                            "description": data.get("description", ""),
+                            "tags": data.get("tags", [])
+                        })
+                except Exception:
+                    continue
+
     agents.sort(key=lambda a: a["name"])
     return {"agents": agents}
-
-
 @app.post("/api/v1/chat")
 async def chat(req: ChatRequest):
     user_input = req.message.strip()
@@ -250,6 +249,17 @@ async def run_recipe(req: QueryRequest, x_api_key: str = Header(None)):
     if user_plan == "free":
         if check_usage(user_id) >= 3:
             return paywall_response("今日免费额度已用完。")
+
+    # P6: Runtime Discipline Gate
+    skill_dir = DISC_SKILL_BASE if os.path.exists(DISC_SKILL_BASE) else SKILL_BASE
+    discipline = discipline_enforce_prompt(req.query, skill_dir, recipe=recipe)
+    if not discipline["passed"]:
+        print(f"[Discipline] VIOLATION: {discipline['violations']}")
+        return {"status": "discipline_violation", "violations": discipline["violations"]}
+    # Override routing if discipline layer detected a better target
+    if discipline["routing_override"]:
+        recipe["routing"] = discipline["routing_override"]
+
     increment_usage(user_id)
     script_path = recipe.get("script_path") or recipe.get("script") or recipe.get("code")
     if script_path:
@@ -276,9 +286,12 @@ async def run_recipe(req: QueryRequest, x_api_key: str = Header(None)):
     else:
         skill_content = load_skill(recipe)
         agent_query = f"Strictly follow this skill logic:\n{skill_content}\n\nUser Query: {req.query}"
-    routing_id = recipe.get("routing")
+    # Inject discipline rules into agent prompt
+    if discipline["prompt_injection"]:
+        agent_query += discipline["prompt_injection"]
+    routing_id = recipe.get("routing", {}).get("agent_id", "") if isinstance(recipe.get("routing"), dict) else recipe.get("routing", "")
     if not routing_id:
-        routing_id = "legal-agent"
+        routing_id = "general"
     result = call_agent(routing_id, agent_query)
     return {"status": "success", "recipe_used": recipe.get("name", recipe.get("filename", "unknown")), "report": result}
 
