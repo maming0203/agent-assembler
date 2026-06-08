@@ -4,8 +4,7 @@
 > Deterministic Context Assembly for Multi-Agent Distribution Network.
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-v0.5.0-blue.svg" alt="v0.5.0 Released">
-  <img src="https://img.shields.io/pypi/v/agent-assembler.svg" alt="PyPI">
+  <a href="https://pypi.org/project/agent-assembler"><img src="https://img.shields.io/pypi/v/agent-assembler" alt="PyPI"></a>
 </p>
 
 > **We don't build the Aircraft Carriers (LLMs); we build the 4S Shop.**
