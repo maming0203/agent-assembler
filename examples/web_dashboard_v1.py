@@ -417,17 +417,21 @@ def analytics_page():
     
     metrics = api_get("/api/v1/metrics")
     summary = api_get("/api/v1/metrics/summary")
+    timeseries = api_get("/api/v1/metrics/timeseries?days=7")
     
     if not isinstance(metrics, dict) or "error" in metrics:
         st.error(f"获取数据失败: {metrics}")
         return
     
     # 顶部指标
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     with col1:
         st.metric("总运行次数", metrics.get("total_runs", 0))
     with col2:
         st.metric("用户数", metrics.get("users", 0))
+    with col3:
+        total_ts = timeseries.get("total", 0) if isinstance(timeseries, dict) else 0
+        st.metric("近 7 天运行", total_ts)
     
     st.divider()
     
@@ -453,10 +457,17 @@ def analytics_page():
     if top_users:
         st.divider()
         st.subheader("🏆 Top 用户")
-        st.table({
-            "用户": [u.get("user", "") for u in top_users],
-            "运行次数": [u.get("runs", 0) for u in top_users],
-        })
+        import pandas as pd
+        df = pd.DataFrame(top_users)
+        st.dataframe(df, use_container_width=True, hide_index=True)
+    
+    # 时序数据
+    if isinstance(timeseries, dict) and timeseries.get("data"):
+        st.divider()
+        st.subheader("📊 运行趋势（近 7 天）")
+        ts_data = timeseries["data"]
+        ts_df = pd.DataFrame(ts_data)
+        st.bar_chart(ts_df.set_index("user")["runs"])
 
 
 # ──────────────────────────────────────────
