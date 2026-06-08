@@ -17,6 +17,7 @@ from pydantic import BaseModel
 
 from .config import RECIPE_BASE, SKILL_BASE, DB_FILE
 from .db import load_json, save_json, get_user_id_by_key
+from .config import USAGE_FILE, DB_FILE, SKILL_BASE
 
 # ──────────────────────────────────────────
 # 数据文件
@@ -314,7 +315,6 @@ async def revoke_api_key(key_prefix: str, x_api_key: str = Header(None)):
 @router.get("/metrics")
 async def get_metrics(limit: int = 50, x_api_key: str = Header(None)):
     """获取运行指标（从 db usage 文件读取）。"""
-    from .config import USAGE_FILE
     usage = load_json(USAGE_FILE) if os.path.exists(USAGE_FILE) else {}
     total_runs = sum(v.get("count", 0) if isinstance(v, dict) else v for v in usage.values())
 
@@ -332,7 +332,6 @@ async def get_metrics(limit: int = 50, x_api_key: str = Header(None)):
 @router.get("/metrics/summary")
 async def get_metrics_summary(x_api_key: str = Header(None)):
     """汇总指标。"""
-    from .config import USAGE_FILE, DB_FILE
     usage = load_json(USAGE_FILE) if os.path.exists(USAGE_FILE) else {}
     users_db = load_json(DB_FILE) if os.path.exists(DB_FILE) else {}
 
@@ -347,6 +346,75 @@ async def get_metrics_summary(x_api_key: str = Header(None)):
         "total_runs": total_runs,
         "plan_distribution": plans,
         "active_recipes": len(_load_recipes()),
+    }
+
+
+@router.get("/metrics/timeseries")
+async def get_metrics_timeseries(days: int = 7, x_api_key: str = Header(None)):
+    """时序指标（最近 N 天的运行次数）。"""
+    usage = load_json(USAGE_FILE) if os.path.exists(USAGE_FILE) else {}
+    # 简单时序：按用户汇总
+    data_points = []
+    for uid, info in usage.items():
+        count = info.get("count", 0) if isinstance(info, dict) else info
+        data_points.append({"user": uid, "runs": count})
+    return {
+        "days": days,
+        "total": sum(d["runs"] for d in data_points),
+        "data": data_points,
+    }
+
+
+class DeployCompleteRequest(BaseModel):
+    name: str
+    coze_token: str
+    coze_space_id: str
+
+
+@router.post("/deploy/coze/complete")
+async def deploy_coze_complete(req: DeployCompleteRequest, x_api_key: str = Header(None)):
+    """完成 Coze 发布：创建 Bot + 发布到 API 渠道。"""
+    if not x_api_key:
+        raise HTTPException(401, "Missing API Key")
+    uid = get_user_id_by_key(x_api_key)
+    if not uid:
+        raise HTTPException(403, "Invalid API Key")
+
+    try:
+        from agent_assembler.recipe import Recipe
+        from agent_assembler.adapters import CozeAdapter
+        from agent_assembler.deploy import CozeApiClient
+    except ImportError:
+        return {"status": "error", "message": "SDK not available"}
+
+    recipe = Recipe(
+        name=req.name,
+        trigger_keywords=[req.name],
+        skills=[],
+        notes="",
+    )
+    adapter = CozeAdapter(skills_dir=SKILL_BASE)
+    config = adapter.export(recipe)
+    bot_info = config["bot_info"]
+
+    client = CozeApiClient(req.coze_token)
+    bot_id = client.create_bot(
+        name=bot_info["name"],
+        description=bot_info["description"],
+        prompt=bot_info["prompt_info"]["prompt"],
+        space_id=req.coze_space_id,
+    )
+
+    if not bot_id:
+        return {"status": "error", "message": "Bot creation failed"}
+
+    pub_result = client.publish_bot(bot_id, 1024)
+
+    return {
+        "status": "published",
+        "bot_id": bot_id,
+        "publish_result": pub_result,
+        "message": f"Bot '{req.name}' published to Coze API channel",
     }
 
 
