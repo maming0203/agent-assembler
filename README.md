@@ -4,6 +4,7 @@
 > Deterministic Context Assembly for Multi-Agent Distribution Network.
 
 <p align="center">
+  <img src="https://img.shields.io/badge/version-v0.5.0-blue.svg" alt="version">
   <a href="https://pypi.org/project/agent-assembler"><img src="https://img.shields.io/pypi/v/agent-assembler" alt="PyPI"></a>
 </p>
 
