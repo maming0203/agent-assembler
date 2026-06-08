@@ -4,7 +4,7 @@
 > Deterministic Context Assembly for Multi-Agent Distribution Network.
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-v0.3.0-blue.svg" alt="v0.3.0 Released">
+  <img src="https://img.shields.io/badge/version-v0.5.0-blue.svg" alt="v0.5.0 Released">
   <img src="https://img.shields.io/pypi/v/agent-assembler.svg" alt="PyPI">
 </p>
 
@@ -100,10 +100,13 @@ Our architecture is **Domain-Agnostic**. It works anywhere.
 | **P0** | Core Stabilization & Validation | ✅ Done |
 | **P1** | Architecture Refactoring (api_gateway → modular) | ✅ Done |
 | **P2** | Bug Fixes (schema, paths, resource leaks, test coverage) | ✅ Done |
-| **P3** | Documentation Alignment | 🚧 Active |
+| **P3** | Documentation Alignment | ✅ Done |
 | **P4** | SDK Hardening (Agent/AgentSpec/Sidecar Bus) | ✅ Done |
 | **P4.3** | Recipe Registry (search, tags, version management) | ✅ Done |
-| **P5** | SaaS Dashboard & No-Code Builder | ⬜ Planned |
+| **P4.4** | LLM Full Chain (LLMClient, Agent.run) | ✅ Done |
+| **Sidecar** | Decision Engine, Simulator, Analytics | ✅ Done |
+| **P5** | SaaS Dashboard & No-Code Builder | ✅ Done |
+| **AutoCraft v2** | Schema fix, .md skills, validation | ✅ Done |
 
 ---
 
