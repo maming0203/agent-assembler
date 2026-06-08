@@ -49,6 +49,16 @@ updated: 2026-06-08
 - [x] registry.py (271 lines)
 - [x] recipe_template.py (221 lines)
 
+## ✅ P4.4 — LLM Full Chain — COMPLETE
+
+- [x] LLMClient: OpenAI-compatible client (DashScope default)
+- [x] LLMResponse: structured response with usage tracking
+- [x] Agent.run(): real LLM call + simulated fallback + error handling
+- [x] Agent._build_messages(): system + history + query
+- [x] Assembler.assemble_agent(): LLM injection + recipe/skill loading
+- [x] __init__.py: v0.4.0, exports LLMClient + LLMResponse (14 classes)
+- [x] 13 new tests, 74/74 total passing
+
 ## ⬜ P5 — SaaS Dashboard & No-Code Builder — PLANNED
 
 - [ ] Web Dashboard with tenant isolation

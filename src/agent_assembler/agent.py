@@ -96,12 +96,14 @@ class Agent:
     - AgentSpec（静态蓝图）
     - Sidecar 插件集合（动态热插拔）
     - 对话历史
+    - LLM 客户端（可选，用于真实推理）
     """
     
-    def __init__(self, spec: AgentSpec):
+    def __init__(self, spec: AgentSpec, llm_client: Any | None = None):
         self.spec = spec
         self._sidecars: dict[str, Any] = {}
         self._history: list[dict[str, str]] = []
+        self._llm = llm_client  # LLMClient or any object with .chat(messages) -> LLMResponse
     
     def add_sidecar(self, name: str, instance: Any):
         """热插拔 Sidecar 插件"""
@@ -123,7 +125,10 @@ class Agent:
         流程：
         1. 记录用户输入到历史
         2. 调用 Sidecar pre_process 链
-        3. 返回结果（后续接入 LLM 调用）
+        3. 构建消息（system + history + query）
+        4. 调用 LLM（如有 client），否则返回模拟结果
+        5. 调用 Sidecar post_process 链
+        6. 记录助手回复到历史
         """
         self._history.append({"role": "user", "content": query})
         
@@ -132,21 +137,71 @@ class Agent:
             if hasattr(sidecar, "pre_process"):
                 processed_query = sidecar.pre_process(processed_query)
         
-        result = {
-            "agent": self.spec.name,
-            "query": query,
-            "processed_query": processed_query,
-            "sidecars_active": list(self._sidecars.keys()),
-            "model": self.spec.model,
-        }
+        # ── LLM 调用 ──
+        if self._llm is not None:
+            messages = self._build_messages(processed_query)
+            llm_resp = self._llm.chat(messages)
+            
+            if llm_resp.status == "error":
+                # LLM 调用失败 → fallback
+                reply = f"[LLM Error] {llm_resp.error}"
+                result = {
+                    "agent": self.spec.name,
+                    "query": query,
+                    "reply": reply,
+                    "status": "llm_error",
+                    "model": self.spec.model,
+                }
+            else:
+                reply = llm_resp.content
+                result = {
+                    "agent": self.spec.name,
+                    "query": query,
+                    "reply": reply,
+                    "status": "success",
+                    "model": llm_resp.model,
+                    "usage": llm_resp.usage,
+                    "sidecars_active": list(self._sidecars.keys()),
+                }
+        else:
+            # 无 LLM client → 模拟模式
+            reply = f"[Simulated] Agent {self.spec.name} received: {processed_query}"
+            result = {
+                "agent": self.spec.name,
+                "query": query,
+                "processed_query": processed_query,
+                "reply": reply,
+                "sidecars_active": list(self._sidecars.keys()),
+                "model": self.spec.model,
+                "status": "simulated",
+            }
         
         # 调用 Sidecar post_process 链
         for name, sidecar in self._sidecars.items():
             if hasattr(sidecar, "post_process"):
                 result = sidecar.post_process(result)
         
-        self._history.append({"role": "assistant", "content": str(result)})
+        self._history.append({"role": "assistant", "content": result.get("reply", str(result))})
         return result
+    
+    def _build_messages(self, query: str) -> list[dict[str, str]]:
+        """构建 LLM 消息列表：system + history + 当前 query。"""
+        messages: list[dict[str, str]] = []
+        
+        # System prompt
+        sys_prompt = self.spec.system_prompt or (
+            f"You are {self.spec.name}. {self.spec.role}"
+        )
+        messages.append({"role": "system", "content": sys_prompt})
+        
+        # Conversation history（排除最后一条用户消息，因为它是当前 query）
+        for msg in self._history[:-1]:  # 不包含刚添加的当前 query
+            messages.append(msg)
+        
+        # 当前用户输入
+        messages.append({"role": "user", "content": query})
+        
+        return messages
     
     @property
     def history(self) -> list[dict[str, str]]:
