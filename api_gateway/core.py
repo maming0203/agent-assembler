@@ -1,5 +1,6 @@
 """Core Gateway module — FastAPI app, routes, DB ops, recipe matching, usage tracking."""
 import json
+import re
 import os
 import time
 from typing import Optional
@@ -133,32 +134,45 @@ async def upload_file(file: UploadFile = File(...), file_type: str = Form(None))
 
 @app.get("/api/v1/agents")
 async def list_agents():
-    """递归扫描 MANIFESTS_DIR 下所有 manifest.json"""
+    """返回 flat JSON 中文配方（面向用户的 Agent 货架）。
+    
+    跳过子目录中的 manifest.json/pot.json/schema.json 等技术定义文件，
+    只返回各业务目录根部的 flat JSON 配方。
+    """
     agents = []
-    if not os.path.exists(MANIFESTS_DIR):
+    if not os.path.exists(RECIPE_BASE):
         return {"agents": []}
 
-    # 递归查找所有 manifest.json
-    for root, dirs, files in os.walk(MANIFESTS_DIR):
-        # 跳过隐藏目录和特殊目录
-        dirs[:] = [d for d in dirs if not d.startswith('.') and d not in ['AutoCreated', 'scripts', 'schemas', 'autocraft']]
-        
-        for f in files:
-            if f == "manifest.json":
-                fp = os.path.join(root, f)
-                try:
-                    with open(fp) as fh:
-                        data = json.load(fh)
-                    # 只加载 type=agent 或没有 type 字段的
-                    if data.get("type", "agent") != "infrastructure":
-                        agents.append({
-                            "id": data.get("id", os.path.basename(root)),
-                            "name": data.get("name", ""),
-                            "description": data.get("description", ""),
-                            "tags": data.get("tags", [])
-                        })
-                except Exception:
-                    continue
+    EXCLUDE_DIRS = {'AutoCreated', 'scripts', 'schemas', 'autocraft', 'mined'}
+    SYSTEM_FILES = {'pot.json', 'schema.json', 'index.json', 'recipe.json', 'manifest.json'}
+
+    for top_dir in os.listdir(RECIPE_BASE):
+        top_path = os.path.join(RECIPE_BASE, top_dir)
+        if not os.path.isdir(top_path) or top_dir in EXCLUDE_DIRS:
+            continue
+
+        for f in os.listdir(top_path):
+            filepath = os.path.join(top_path, f)
+            if not os.path.isfile(filepath) or not f.endswith(".json") or f in SYSTEM_FILES:
+                continue
+            try:
+                with open(filepath, "r", encoding="utf-8") as fh:
+                    data = json.load(fh)
+
+                agent_id = data.get("name", f.replace(".json", ""))
+                # 兼容旧格式
+                keywords = data.get("trigger_keywords", data.get("triggers", []))
+                notes = data.get("notes", "")
+                description = notes if notes else f"涵盖：{', '.join(keywords[:3])}" if keywords else ""
+
+                agents.append({
+                    "id": agent_id,
+                    "name": agent_id,
+                    "description": description,
+                    "tags": keywords[:3]
+                })
+            except Exception:
+                continue
 
     agents.sort(key=lambda a: a["name"])
     return {"agents": agents}

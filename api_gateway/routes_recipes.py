@@ -33,60 +33,74 @@ class RecipeUpdate(BaseModel):
 
 
 def _load_recipes() -> list[dict[str, Any]]:
+    """只加载各业务目录下的 flat JSON，不递归子子目录。
+    
+    跳过子目录（如 cost-accounting-sop-v1/）里的 manifest.json、pot.json、schema.json
+    等技术定义文件，只返回用户配方。
+    """
     recipes = []
     if not os.path.exists(RECIPE_BASE):
         return recipes
-    # 系统文件（不是 recipe，必须跳过）
-    SYSTEM_FILES = {'pot.json', 'schema.json', 'index.json', 'recipe.json'}
-    # 需要排除的目录
+
+    # 排除系统目录
     EXCLUDE_DIRS = {'AutoCreated', 'scripts', 'schemas', 'autocraft', 'mined'}
+    # 系统文件（不是 recipe）
+    SYSTEM_FILES = {'pot.json', 'schema.json', 'index.json', 'recipe.json'}
 
-    for root, dirs, files in os.walk(RECIPE_BASE):
-        # 排除特定目录
-        dirs[:] = [d for d in dirs if d not in EXCLUDE_DIRS]
+    # 只遍历顶层目录（Finance/, Merchants/ 等）
+    for top_dir in os.listdir(RECIPE_BASE):
+        top_path = os.path.join(RECIPE_BASE, top_dir)
+        if not os.path.isdir(top_path):
+            continue
+        if top_dir in EXCLUDE_DIRS:
+            continue
 
-        for f in files:
+        # 在顶层目录下只加载 flat JSON，不进入子子目录
+        for f in os.listdir(top_path):
+            filepath = os.path.join(top_path, f)
+            # 只加载文件，不加载子目录
+            if not os.path.isfile(filepath):
+                continue
             if not f.endswith(".json"):
                 continue
             if f in SYSTEM_FILES:
                 continue
             try:
-                with open(os.path.join(root, f), "r", encoding="utf-8") as fh:
+                with open(filepath, "r", encoding="utf-8") as fh:
                     data = json.load(fh)
-
-                # manifest.json 是 Agent 系统的内部定义，不是面向用户的 recipe
-                if f == "manifest.json":
-                    continue
-
                 data["_name"] = data.get("name", f.replace(".json", ""))
                 # 平格式 recipe 可能用 triggers 而非 trigger_keywords
                 if "trigger_keywords" not in data and "triggers" in data:
                     data["trigger_keywords"] = data.pop("triggers")
-
                 data["_file"] = f
-                data["_path"] = os.path.join(root, f)
-                data["_is_premium"] = "Premium" in root
+                data["_path"] = filepath
+                data["_category"] = top_dir
+                data["_is_premium"] = "Premium" in top_dir
                 recipes.append(data)
             except Exception:
                 continue
+
     return recipes
 
 def _find_recipe_file(name: str) -> Optional[str]:
     name_lower = name.lower()
-    for root, dirs, files in os.walk(RECIPE_BASE):
-        # 跳过排除目录
-        dirs[:] = [d for d in dirs if d not in {'AutoCreated', 'scripts', 'schemas', 'autocraft', 'mined'}]
-        for f in files:
-            if not f.endswith(".json"):
-                continue
-            if f in {'pot.json', 'schema.json', 'index.json', 'recipe.json'}:
+    EXCLUDE_DIRS = {'AutoCreated', 'scripts', 'schemas', 'autocraft', 'mined'}
+    SYSTEM_FILES = {'pot.json', 'schema.json', 'index.json', 'recipe.json'}
+
+    for top_dir in os.listdir(RECIPE_BASE):
+        top_path = os.path.join(RECIPE_BASE, top_dir)
+        if not os.path.isdir(top_path) or top_dir in EXCLUDE_DIRS:
+            continue
+        for f in os.listdir(top_path):
+            filepath = os.path.join(top_path, f)
+            if not os.path.isfile(filepath) or not f.endswith(".json") or f in SYSTEM_FILES:
                 continue
             try:
-                with open(os.path.join(root, f), "r", encoding="utf-8") as fh:
+                with open(filepath, "r", encoding="utf-8") as fh:
                     data = json.load(fh)
-                rname = (data.get("_name") or data.get("name") or "").lower()
+                rname = (data.get("name") or "").lower()
                 if name_lower in rname or rname in name_lower or name_lower in f.lower() or f.lower() in name_lower:
-                    return os.path.join(root, f)
+                    return filepath
             except Exception:
                 continue
     return None
@@ -101,12 +115,14 @@ async def list_recipes(x_api_key: str = Header(None)):
     recipes = _load_recipes()
     return {
         "total": len(recipes),
+        "categories": list(set(r.get("_category", "") for r in recipes)),
         "recipes": [
             {"name": r.get("_name") or r.get("name", "Unknown"),
              "keywords": r.get("trigger_keywords", []),
              "skills": r.get("skills", []),
              "notes": r.get("notes", ""),
              "file": r.get("_file", ""),
+             "category": r.get("_category", ""),
              "is_premium": r.get("_is_premium", False)}
             for r in recipes
         ],
@@ -125,7 +141,8 @@ async def search_recipes(q: str, x_api_key: str = Header(None)):
             matches.append({"name": r.get("_name") or r.get("name"),
                            "keywords": r.get("trigger_keywords", []),
                            "notes": r.get("notes", ""),
-                           "file": r.get("_file", "")})
+                           "file": r.get("_file", ""),
+                           "category": r.get("_category", "")})
     return {"query": q, "matches": len(matches), "recipes": matches}
 
 @router.get("/recipes/{recipe_name}")
