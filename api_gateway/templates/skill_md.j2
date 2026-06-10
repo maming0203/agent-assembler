@@ -1,0 +1,66 @@
+---
+name: {{ skill_name }}
+recipe: {{ recipe_name }}
+version: {{ version | default("1.0.0") }}
+created: {{ created_date | default("2026-06-10") }}
+category: {{ category | default("AutoCraft") }}
+---
+
+# {{ skill_name }}
+
+> 自动生成技能文件 — 由 AutoCraft v3 为配方「{{ recipe_name }}」创建
+
+## GEO 优化清单
+
+- **意图描述**: {{ intent_description | default("用户需要关于" ~ recipe_name ~ "的专业帮助") }}
+- **场景标签**: {{ scenario_tags | default(["咨询", "分析"]) | join(", ") }}
+- **适用人群**: {{ target_audience | default("需要" ~ recipe_name ~ "解决方案的用户") }}
+
+## 触发关键词
+
+{{ trigger_keywords | join(", ") }}
+
+## Few-shot 示例
+
+{% for example in few_shot_examples %}
+### 示例 {{ loop.index }}
+**用户**: {{ example.user }}
+**助手**: {{ example.assistant }}
+{% endfor %}
+
+## 角色定义
+
+你是一位专注于 **{{ recipe_name }}** 领域的专家。
+
+## 能力
+
+{% for capability in capabilities %}
+- {{ capability }}
+{% endfor %}
+
+## 工作流程
+
+1. **理解需求** — 明确用户的具体问题和背景
+2. **分析场景** — 识别关键因素和约束条件
+3. **执行计算** — 如有配套脚本，优先运行 Python 脚本获取精确结果
+4. **提供方案** — 给出结构化、可操作的建议
+5. **跟进反馈** — 根据用户反馈调整方案
+
+## 输入 Schema
+
+{% for param in input_schema %}
+- **{{ param.name }}** (`{{ param.type }}`): {{ param.description }}{% if param.required %} [必填]{% else %} [选填，默认: {{ param.default }}]{% endif %}
+{% endfor %}
+
+## 输出 Schema
+
+{% for field in output_schema %}
+- **{{ field.name }}** (`{{ field.type }}`): {{ field.description }}
+{% endfor %}
+
+## 约束
+
+- 不提供违法、违规、有害的建议
+- 不确定时明确告知用户
+- 涉及数据/计算时优先运行配套 Python 脚本，不得依赖大模型文本推理
+- 脚本执行失败时降级为 LLM 分析并告知用户

@@ -57,6 +57,8 @@ def find_recipe(query):
                     with open(os.path.join(root, f), "r", encoding="utf-8") as fh:
                         d = json.load(fh)
                     for kw in d.get("trigger_keywords", []):
+                        if len(kw) < 4:  # 跳过过于宽泛的短关键词
+                            continue
                         if kw in query:
                             d["_source_premium"] = False
                             d["filename"] = f.replace(".json", "")
@@ -72,6 +74,8 @@ def find_recipe(query):
                     with open(os.path.join(root, f), "r", encoding="utf-8") as fh:
                         d = json.load(fh)
                     for kw in d.get("trigger_keywords", []):
+                        if len(kw) < 4:  # 跳过过于宽泛的短关键词
+                            continue
                         if kw in query:
                             d["_source_premium"] = True
                             d["filename"] = f.replace(".json", "")
@@ -118,12 +122,21 @@ def load_skill(recipe):
 def check_usage(uid):
     usage = load_json(USAGE_FILE)
     today = time.strftime("%Y-%m-%d")
-    return usage.get(uid, {}).get(today, 0)
+    val = usage.get(uid, {})
+    if not isinstance(val, dict):
+        return val if isinstance(val, int) else 0
+    return val.get(today, 0)
+
 
 
 def increment_usage(uid):
     usage = load_json(USAGE_FILE)
     today = time.strftime("%Y-%m-%d")
-    usage.setdefault(uid, {})
-    usage[uid][today] = usage[uid].get(today, 0) + 1
+    val = usage.get(uid)
+    if not isinstance(val, dict):
+        # Migrate legacy int value to dict format
+        old_count = val if isinstance(val, int) else 0
+        usage[uid] = {today: old_count + 1}
+    else:
+        val[today] = val.get(today, 0) + 1
     save_json(USAGE_FILE, usage)

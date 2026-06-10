@@ -8,7 +8,7 @@ from typing import Optional
 from fastapi import FastAPI, Header, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
 
-from .autocraft import auto_craft_and_run, sanitize
+from .autocraft_v4 import auto_craft_and_run, sanitize
 from .config import (
     AUTO_DIR, DISPATCHER_SCRIPT, INGESTOR_SCRIPT, IS_CLOUD,
     MANIFESTS_DIR, RECIPE_BASE, ROUTING_SCHEMA_PATH, SKILL_BASE,

@@ -1,0 +1,33 @@
+{
+  "name": "{{ recipe_name }}",
+  "version": "{{ version | default('1.0.0') }}",
+  "category": "{{ category | default('AutoCraft') }}",
+  "trigger_keywords": {{ trigger_keywords | tojson }},
+  "description": "{{ description | default('') }}",
+  "notes": "{{ notes | default('') }}",
+  "script_path": "{{ script_path | default('') }}",
+  "skill_md": "{{ skill_md | default('') }}",
+  "mcp_config": "{{ mcp_config | default('') }}",
+  "intent_description": "{{ intent_description | default('') }}",
+  "scenario_tags": {{ scenario_tags | default([]) | tojson }},
+  "target_audience": "{{ target_audience | default('') }}",
+  "few_shot_examples": {{ few_shot_examples | tojson }},
+  "routing": {
+    "agent_id": "{{ agent_id | default('default') }}",
+    "fallback": "{{ fallback_agent | default('general') }}",
+    "priority": {{ priority | default(1) }}
+  },
+  "engine_config": {
+    "model": "{{ model | default('qwen3.6-plus') }}",
+    "temperature": {{ temperature | default(0.3) }},
+    "max_tokens": {{ max_tokens | default(4096) }},
+    "timeout": {{ timeout | default(60) }}
+  },
+  "skills": {{ skills | default([]) | tojson }},
+  "inputs": {{ input_schema | tojson }},
+  "features": {{ features | default([]) | tojson }},
+  "tags": {{ tags | default([]) | tojson }},
+  "auto_generated": true,
+  "test_passed": {{ test_passed | default(false) | lower }},
+  "created": "{{ created_date | default('2026-06-10') }}"
+}
