@@ -1,125 +1,131 @@
-# Agent Assembler 🧩
+# Agent Assembler
 
-> **The On-Demand Digital Arsenal for the AI Era.**
-> Deterministic Context Assembly for Multi-Agent Distribution Network.
+**AI Agent 配方工厂 — 从自然语言到可执行配方的自动化生产线**
 
-<p align="center">
-  <img src="https://img.shields.io/badge/version-v0.5.0-blue.svg" alt="version">
-  <a href="https://pypi.org/project/agent-assembler"><img src="https://img.shields.io/pypi/v/agent-assembler" alt="PyPI"></a>
-</p>
+> v1.0.0 | 2026-06-10
 
-> **We don't build the Aircraft Carriers (LLMs); we build the 4S Shop.**
-> Agent Assembler is the **core engine** that powers multi-agent systems, turning non-standard business requirements into standardized, executable AI Agents.
+## 核心能力
 
----
+### 🏭 AutoCraft v4 — 自动化配方生成
 
-## 🚀 Why Agent Assembler?
+```
+自然语言 → LLM 生成 → 产物生成(Jinja2) → 结构化验证 → 独立评估 → 质量门禁 → 入库
+```
 
-In the current AI landscape, Large Language Models provide immense "intelligence," yet they often fail in critical business scenarios due to a lack of **Domain Knowledge** and **Deterministic Logic**.
+- **4 产物自动生成**: Recipe JSON + Python 脚本 + SKILL.md + MCP 配置
+- **P0 独立评估器**: 独立上下文验证，防止"自卖自夸"
+- **P2b 质量门禁**: 6 维评分（命名/关键词/执行时间/文件大小/字段完整性/版本号），< 70 分拒绝发布
+- **自动重试**: 任一关卡失败自动清理产物并重试（最多 3 次）
 
-| Feature | Traditional SaaS | Traditional Outsourcing | **Agent Assembler** |
-| :--- | :--- | :--- | :--- |
-| **Delivery** | Rigid, standard accounts | Expensive, slow human labor | **On-demand digital production** |
-| **Flexibility** | Low (Roadmap dependent) | High (Cost scales linearly) | **Extreme (Sidecar hot-plugging)** |
-| **Core Asset** | Vendor's platform code | Client's private code | **The Recipe Matrix (Industry Wisdom)** |
-| **Marginal Cost** | Low (per seat) | High (per project) | **Near Zero (per assembly)** |
+### 🔄 工作流引擎
 
-Agent Assembler bridges the gap with a **"Recipe + Sidecar"** architecture, allowing domain experts to convert tacit industry knowledge into executable digital assets.
+- **DAG 拓扑排序** (Kahn 算法)
+- **条件分支** (8 种操作符 + 风险等级感知)
+- **跨 step 一致性校验** (P2a)
+- **异常处理策略** (abort/skip/retry/fallback)
+- **并行组支持**
 
----
+### 🌐 多平台适配
 
-## 🏗️ Core Architecture
+一个配方，四种输出：
 
-### 1. Micro-kernel + Sidecar Bus
+| 平台 | 格式 |
+|------|------|
+| 微信 | rich_text (sections + table) |
+| 钉钉 | actionCard (markdown + btns) |
+| 飞书 | interactive (card.elements) |
+| 企微 | template_card (text_notice) |
 
-The core soul of the framework — decoupling core logic from auxiliary capabilities for maximum flexibility.
+### 🛡️ 质量保障体系
 
-- **🥘 Pot (The Recipe)**: Encapsulates essential business logic and data flow (e.g., Profit Calculation, Compliance Check).
-- **🔌 Sidecar Bus (Pluggable Plugins)**: Capabilities are hot-swappable via a standard bus:
-  - **🧠 Decision Engine**: Deterministic analysis & "Red-Yellow-Green" verdicts.
-  - **🎭 Simulator**: Immersive role-play for business negotiation training.
-  - **📊 Analytics**: Data persistence and visualization pipelines.
-- **🏭 Factory (The Assembler)**: Orchestrates the "Pots" and "Lids" to assemble and deploy specific Agents.
+```
+生成 → 评估 → 拦截 → 门禁 → 分发
+  ↓       ↓       ↓       ↓       ↓
+AutoCraft Evaluator Consistency Quality  Adapter
+         (P0)     (P2a)     Gate    (P2d)
+                            (P2b)
+```
 
-### 2. JIT Assembly & Atomic Design
+每一层独立校验，脏数据和低质量配方到不了用户面前。
 
-- **Recipe-First**: Intent matching against pre-defined JSON recipes.
-- **Atomic Skills (<4KB)**: Focused, composable modules that do one thing well.
-- **AutoCraft**: Automated generation engine transforming unstructured requirements into deployed scripts with zero-marginal-cost.
+## 硬配方库
 
-### 3. Multi-Platform Adapters
+### P0 级（带脚本 + 测试）
 
-Deploy assembled Agents to any platform with one click: **Qianwen, Coze, WeChat**, and more.
+| 配方 | 能力 |
+|------|------|
+| 门店糊涂账计算器 | 保本点、日/月营业额、利润 |
+| 员工提成计算器 | 底薪+提成+社保 |
+| 广告违禁词检测 | 广告法违禁词扫描 |
+| 沧州商户工具包 | 3 合 1（利润+工资+违禁词） |
 
----
+### P1 级
 
-## 🛠️ Installation & Quick Start
+| 配方 | 能力 |
+|------|------|
+| 销售提成模拟器 | 固定/阶梯/毛利/混合四种模式 |
+| 战略决策引擎 | SWOT+PEST+波特五力 |
+| 营销 ROI 优化器 | 渠道 ROI 计算+预算分配 |
+
+## 架构
+
+```
+Agent Assembler
+├── autocraft_v4.py      # AutoCraft v4 主引擎
+├── template_engine.py   # Jinja2 模板引擎
+├── recipe_validator.py  # 配方结构化验证器
+├── workflow_engine.py   # DAG 工作流引擎
+├── trinity_routes.py    # Trinity 执行路由
+├── db.py                # 配方匹配 + 计费
+├── platforms/           # 多平台适配器
+│   ├── dingtalk/
+│   ├── feishu/
+│   └── wecom/
+└── templates/           # Jinja2 模板
+    ├── recipe_json.j2
+    ├── recipe_script.j2
+    ├── skill_md.j2
+    └── mcp_config.j2
+```
+
+## 快速开始
+
+### 启动 Gateway
 
 ```bash
-pip install agent-assembler
+cd agent-assembler
+uvicorn api_gateway.core:app --host 0.0.0.0 --port 8000
 ```
 
-```python
-from agent_assembler import Assembler, Agent, AgentSpec, SidecarBus
+### 触发 AutoCraft
 
-# Quick JIT assembly
-assembler = Assembler(recipes_dir="./recipes", skills_dir="./skills")
-result = assembler.assemble("Analyze this excel file")
-print(result['system_prompt'])
-
-# Spec-driven Agent assembly
-spec = AgentSpec(name="Tax Advisor", role="财务顾问", recipes=["tax_consulting"])
-agent = assembler.assemble_agent(spec)
-
-# Sidecar Bus (pluggable capabilities)
-bus = SidecarBus(decision_engine=True, simulator=True, analytics=True)
+```bash
+curl -X POST http://localhost:8000/api/v1/run \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: ***" \
+  -d '{"query": "帮我设计一个宠物店会员积分兑换系统"}'
 ```
 
----
+### 多平台分发
 
-## 🎯 From Sandbox to Matrix
+```bash
+curl -X POST http://localhost:5000/api/v1/execute \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: ***" \
+  -d '{
+    "skill": "cangzhou_merchant_pack",
+    "query": "房租8000，3个员工",
+    "platform": "dingtalk"
+  }'
+```
 
-Our architecture is **Domain-Agnostic**. It works anywhere.
+## 技术栈
 
-1. **🧪 The Sandbox (Validation Phase)**
-   - Validated in high-noise, non-standard environments (e.g., Tier-3/4 city retail & dining markets).
-   - **Proven**: Solves "messy accounts," compliance risks, and performance disputes with "Micro-Deductions" (calculating exact break-even points in seconds).
+- **后端**: Python 3.11 + FastAPI + Uvicorn
+- **模板**: Jinja2
+- **LLM**: DashScope (Qwen)
+- **部署**: systemd (ECS) / CloudBase (腾讯云)
 
-2. **🌍 The Matrix (Expansion Phase)**
-   - **Zero Code Change** required at the core engine level.
-   - **Cross-Border E-commerce**: Inventory turnover optimization.
-   - **Manufacturing**: Production line yield simulation.
-   - **Compliance**: Automated contract auditing.
+## License
 
----
-
-## 🗺️ Roadmap
-
-| Phase | Goal | Status |
-| :--- | :--- | :--- |
-| **P0** | Core Stabilization & Validation | ✅ Done |
-| **P1** | Architecture Refactoring (api_gateway → modular) | ✅ Done |
-| **P2** | Bug Fixes (schema, paths, resource leaks, test coverage) | ✅ Done |
-| **P3** | Documentation Alignment | ✅ Done |
-| **P4** | SDK Hardening (Agent/AgentSpec/Sidecar Bus) | ✅ Done |
-| **P4.3** | Recipe Registry (search, tags, version management) | ✅ Done |
-| **P4.4** | LLM Full Chain (LLMClient, Agent.run) | ✅ Done |
-| **Sidecar** | Decision Engine, Simulator, Analytics | ✅ Done |
-| **P5** | SaaS Dashboard & No-Code Builder | ✅ Done |
-| **AutoCraft v2** | Schema fix, .md skills, validation | ✅ Done |
-
----
-
-## 🔮 Vision
-
-We are building the **Salesforce of the AI Era**.
-
-We provide not just tools, but an infrastructure for global developers and industry experts to co-build a **Commercial Wisdom Recipe Library**.
-
-> *"The future is already here — it's just not evenly distributed. We are the pipeline builders."*
-
----
-
-## 📜 License
-
-Apache 2.0 (Core SDK) / Commercial (Proprietary Recipes)
+MIT
