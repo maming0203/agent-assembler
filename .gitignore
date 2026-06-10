@@ -44,3 +44,7 @@ cross_profile_collector.py
 # ===========================================
 data/api_keys.json
 data/*.json
+
+# Key files
+*.pem
+*.key
