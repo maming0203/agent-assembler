@@ -48,3 +48,12 @@ data/*.json
 # Key files
 *.pem
 *.key
+
+# Backup files
+*-backup
+*.bak
+*.backup
+
+# Editor temp files
+*.swp
+*.swo
