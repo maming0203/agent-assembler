@@ -1,6 +1,5 @@
 """Core Gateway module — FastAPI app, routes, DB ops, recipe matching, usage tracking."""
 import json
-import re
 import os
 import time
 from typing import Optional
@@ -21,9 +20,7 @@ from .db import (
     load_json, load_skill, paywall_response, save_json,
 )
 from .multimodal import handle_upload, _ingestor_extract_keywords, _create_dispatcher
-from .script_engine import _extract_script_args, _run_script
-from .discipline import discipline_enforce_prompt, check_skill_size_inline
-from .config import SKILL_BASE as DISC_SKILL_BASE
+from .script_engine import _extract_script_args, _run_script, _run_script_json
 
 # App
 app = FastAPI(title="Agent Assembler Gateway", version="2.1.0")
@@ -134,48 +131,28 @@ async def upload_file(file: UploadFile = File(...), file_type: str = Form(None))
 
 @app.get("/api/v1/agents")
 async def list_agents():
-    """返回 flat JSON 中文配方（面向用户的 Agent 货架）。
-    
-    跳过子目录中的 manifest.json/pot.json/schema.json 等技术定义文件，
-    只返回各业务目录根部的 flat JSON 配方。
-    """
     agents = []
-    if not os.path.exists(RECIPE_BASE):
+    if not os.path.exists(MANIFESTS_DIR):
         return {"agents": []}
-
-    EXCLUDE_DIRS = {'AutoCreated', 'scripts', 'schemas', 'autocraft', 'mined'}
-    SYSTEM_FILES = {'pot.json', 'schema.json', 'index.json', 'recipe.json', 'manifest.json'}
-
-    for top_dir in os.listdir(RECIPE_BASE):
-        top_path = os.path.join(RECIPE_BASE, top_dir)
-        if not os.path.isdir(top_path) or top_dir in EXCLUDE_DIRS:
+    for f in os.listdir(MANIFESTS_DIR):
+        if not f.endswith(".json"):
             continue
-
-        for f in os.listdir(top_path):
-            filepath = os.path.join(top_path, f)
-            if not os.path.isfile(filepath) or not f.endswith(".json") or f in SYSTEM_FILES:
-                continue
-            try:
-                with open(filepath, "r", encoding="utf-8") as fh:
-                    data = json.load(fh)
-
-                agent_id = data.get("name", f.replace(".json", ""))
-                # 兼容旧格式
-                keywords = data.get("trigger_keywords", data.get("triggers", []))
-                notes = data.get("notes", "")
-                description = notes if notes else f"涵盖：{', '.join(keywords[:3])}" if keywords else ""
-
-                agents.append({
-                    "id": agent_id,
-                    "name": agent_id,
-                    "description": description,
-                    "tags": keywords[:3]
-                })
-            except Exception:
-                continue
-
+        filepath = os.path.join(MANIFESTS_DIR, f)
+        try:
+            with open(filepath, "r", encoding="utf-8") as fh:
+                data = json.load(fh)
+            agents.append({
+                "id": data.get("id", f.replace(".json", "")),
+                "name": data.get("name", "Unknown Agent"),
+                "description": data.get("description", ""),
+                "tags": data.get("tags", []),
+            })
+        except Exception:
+            continue
     agents.sort(key=lambda a: a["name"])
     return {"agents": agents}
+
+
 @app.post("/api/v1/chat")
 async def chat(req: ChatRequest):
     user_input = req.message.strip()
@@ -211,6 +188,25 @@ async def chat(req: ChatRequest):
             messages.extend(history)
             messages.append({"role": "user", "content": user_input})
             llm_response = _call_llm(messages)
+            # If LLM fails but we have script output, return script result directly
+            if llm_response.startswith("LLM call failed:") and 'success' in script_output:
+                try:
+                    script_data = json.loads(script_output)
+                    if script_data.get("status") == "success":
+                        # Format script output as readable report
+                        output = script_data.get("output", {})
+                        steps = script_data.get("steps", [])
+                        report_lines = []
+                        if isinstance(output, dict):
+                            for k, v in output.items():
+                                report_lines.append(f"- {k}: {v}")
+                        if steps:
+                            report_lines.append("\n计算步骤:")
+                            for s in steps:
+                                report_lines.append(f"  {s}")
+                        llm_response = "\n".join(report_lines) if report_lines else script_output
+                except (json.JSONDecodeError, AttributeError):
+                    pass  # Keep the LLM error message
             history.append({"role": "user", "content": user_input})
             history.append({"role": "assistant", "content": llm_response})
             if len(history) > 20:
@@ -263,17 +259,6 @@ async def run_recipe(req: QueryRequest, x_api_key: str = Header(None)):
     if user_plan == "free":
         if check_usage(user_id) >= 3:
             return paywall_response("今日免费额度已用完。")
-
-    # P6: Runtime Discipline Gate
-    skill_dir = DISC_SKILL_BASE if os.path.exists(DISC_SKILL_BASE) else SKILL_BASE
-    discipline = discipline_enforce_prompt(req.query, skill_dir, recipe=recipe)
-    if not discipline["passed"]:
-        print(f"[Discipline] VIOLATION: {discipline['violations']}")
-        return {"status": "discipline_violation", "violations": discipline["violations"]}
-    # Override routing if discipline layer detected a better target
-    if discipline["routing_override"]:
-        recipe["routing"] = discipline["routing_override"]
-
     increment_usage(user_id)
     script_path = recipe.get("script_path") or recipe.get("script") or recipe.get("code")
     if script_path:
@@ -289,6 +274,8 @@ async def run_recipe(req: QueryRequest, x_api_key: str = Header(None)):
                 f"Explain this result to the user in a clear, professional manner. "
                 f"Do NOT recalculate."
             )
+            # Store script_output for fallback if LLM fails
+            _last_script_output = script_output
         else:
             print(f"[Script Engine] Script failed, falling back to LLM: {script_output}")
             skill_content = load_skill(recipe)
@@ -300,14 +287,323 @@ async def run_recipe(req: QueryRequest, x_api_key: str = Header(None)):
     else:
         skill_content = load_skill(recipe)
         agent_query = f"Strictly follow this skill logic:\n{skill_content}\n\nUser Query: {req.query}"
-    # Inject discipline rules into agent prompt
-    if discipline["prompt_injection"]:
-        agent_query += discipline["prompt_injection"]
     routing_id = recipe.get("routing", {}).get("agent_id", "") if isinstance(recipe.get("routing"), dict) else recipe.get("routing", "")
     if not routing_id:
         routing_id = "general"
     result = call_agent(routing_id, agent_query)
+    # Fallback: if LLM fails but script succeeded, return script output directly
+    if isinstance(result, str) and result.startswith("LLM call failed:") and script_path and 'success' in str(script_output):
+        try:
+            script_data = json.loads(script_output)
+            if script_data.get("status") == "success":
+                output = script_data.get("output", {})
+                steps = script_data.get("steps", [])
+                report_lines = ["📊 计算结果:"]
+                if isinstance(output, dict):
+                    for k, v in output.items():
+                        report_lines.append(f"  • {k}: {v}")
+                if steps:
+                    report_lines.append("\n📝 计算步骤:")
+                    for s in steps:
+                        report_lines.append(f"  {s}")
+                data_info = script_data.get("data", {})
+                if data_info:
+                    report_lines.append("\n📋 输入参数:")
+                    for k, v in data_info.items():
+                        if k != "query":
+                            report_lines.append(f"  • {k}: {v}")
+                result = "\n".join(report_lines)
+        except (json.JSONDecodeError, AttributeError, TypeError):
+            pass  # Keep the LLM error message
     return {"status": "success", "recipe_used": recipe.get("name", recipe.get("filename", "unknown")), "report": result}
+
+
+
+
+class ExecuteRequest(BaseModel):
+    query: str
+    inputs: Optional[dict] = None
+
+
+@app.post("/api/v1/execute")
+async def execute_recipe(req: ExecuteRequest, x_api_key: str = Header(None)):
+    """Execute a matched recipe's script and return structured calculation results.
+
+    1. Match query to a recipe
+    2. Extract/merge inputs from request + recipe defaults + query parsing
+    3. Execute script with --json mode
+    4. Return structured result with contract/result fields
+    """
+    if not x_api_key:
+        raise HTTPException(401, "Missing API Key")
+
+    user_id = get_user_id_by_key(x_api_key)
+    if not user_id:
+        raise HTTPException(403, "Invalid Key")
+
+    db = load_json(DB_FILE)
+    user_info = db.get(user_id, {})
+    user_plan = user_info.get("plan", "free") if isinstance(user_info, dict) else "free"
+
+    # 1. Find matching recipe
+    recipe = find_recipe(req.query)
+    if not recipe:
+        return {
+            "status": "not_found",
+            "message": "未找到匹配的配方",
+            "query": req.query,
+        }
+
+    # 2. Premium / usage checks
+    if is_premium(recipe) and user_plan == "free":
+        return paywall_response("Premium 配方需要升级解锁。")
+    if user_plan == "free":
+        if check_usage(user_id) >= 3:
+            return paywall_response("今日免费额度已用完。")
+    increment_usage(user_id)
+
+    # 3. Get script path
+    script_path = recipe.get("script_path") or recipe.get("script") or recipe.get("code")
+    if not script_path:
+        return {
+            "status": "error",
+            "message": "该配方没有关联的执行脚本",
+            "recipe": recipe.get("name", recipe.get("filename", "unknown")),
+        }
+
+    # 4. Build inputs: merge request inputs + recipe defaults + query parsing
+    inputs = {}
+
+    # Start with any explicit inputs from the request
+    if req.inputs:
+        inputs.update(req.inputs)
+
+    # Add recipe default script_args
+    recipe_args = recipe.get("script_args", {})
+    if isinstance(recipe_args, dict):
+        for k, v in recipe_args.items():
+            if k not in inputs:
+                inputs[k] = v
+
+    # Parse key=value from query
+    import re as _re
+    for match in _re.findall(r'(\w+)\s*[=:]\s*([^\s,;]+)', req.query):
+        key, val = match
+        if key not in inputs:
+            try:
+                inputs[key] = float(val) if '.' in val else int(val)
+            except ValueError:
+                inputs[key] = val
+
+    # 5. Execute script with --json mode
+    success, output = _run_script_json(script_path, inputs)
+
+    if not success:
+        return {
+            "status": "script_error",
+            "message": output,
+            "recipe": recipe.get("name", recipe.get("filename", "unknown")),
+            "script": script_path,
+            "inputs": inputs,
+        }
+
+    # 6. Parse and return structured result
+    try:
+        result_data = json.loads(output)
+    except json.JSONDecodeError:
+        return {
+            "status": "parse_error",
+            "message": "脚本输出格式异常",
+            "raw_output": output[:500],
+            "recipe": recipe.get("name", recipe.get("filename", "unknown")),
+        }
+
+    # Build response with contract structure
+    data = result_data.get("data", {})
+    return {
+        "status": "success",
+        "recipe": recipe.get("name", recipe.get("filename", "unknown")),
+        "slug": recipe.get("slug", recipe.get("filename", "")),
+        "contract": {
+            "inputs_summary": result_data.get("meta", {}).get("inputs_summary", inputs),
+            "result": {
+                "monthly_fixed_cost": data.get("monthly_fixed_cost"),
+                "profit_per_order": data.get("profit_per_order"),
+                "monthly_break_even_orders": data.get("monthly_break_even_orders"),
+                "daily_break_even_orders": data.get("daily_break_even_orders"),
+                "daily_break_even_revenue": data.get("daily_break_even_revenue"),
+                "monthly_break_even_revenue": data.get("monthly_break_even_revenue"),
+                "cost_structure": data.get("cost_structure"),
+                "profit_scenarios": data.get("profit_scenarios"),
+                "forecast_table": [
+                    {
+                        "label": s["label"],
+                        "daily_orders": s["daily_orders"],
+                        "monthly_orders": s["monthly_orders"],
+                        "monthly_revenue": s["monthly_revenue"],
+                        "monthly_net_profit": s["monthly_net_profit"],
+                        "is_profitable": s["is_profitable"],
+                    }
+                    for s in data.get("profit_scenarios", [])
+                ],
+                "suggestions": data.get("suggestions", []),
+                "breakEvenOrders": data.get("daily_break_even_orders"),
+                "forecastTable": [
+                    {
+                        "label": s["label"],
+                        "dailyOrders": s["daily_orders"],
+                        "monthlyRevenue": s["monthly_revenue"],
+                        "monthlyNetProfit": s["monthly_net_profit"],
+                        "isProfitable": s["is_profitable"],
+                    }
+                    for s in data.get("profit_scenarios", [])
+                ],
+            },
+        },
+        "meta": result_data.get("meta", {}),
+    }
+
+
+
+
+# ─────────────────────────────────────────────────────────────
+# /api/v1/calc — 快速计算端点（脚本直出，不调 LLM）
+# ─────────────────────────────────────────────────────────────
+
+class CalcRequest(BaseModel):
+    query: str
+    inputs: Optional[dict] = None
+
+
+# 各配方的默认参数（防止必填参数缺失报错）
+_CALC_DEFAULTS = {
+    "rent": 0,
+    "utilities": 500,
+    "labor": 0,
+    "other": 0,
+    "other_fixed": 0,
+    "gross_margin": 50,
+    "unit_price": 15,
+    "unit_cost": 0,
+}
+
+
+@app.post("/api/v1/calc")
+async def calc_recipe(req: CalcRequest, x_api_key: str = Header(None)):
+    """快速计算端点 — 脚本直出结构化结果，不调 LLM。
+
+    与 /api/v1/execute 的区别：
+    1. 参数有默认值（不会因缺少必填参数报错）
+    2. 无配方时快速失败（不触发 AutoCraft）
+    3. 响应时间 < 3 秒（纯脚本执行）
+    """
+    if not x_api_key:
+        raise HTTPException(401, "Missing API Key")
+
+    user_id = get_user_id_by_key(x_api_key)
+    if not user_id:
+        raise HTTPException(403, "Invalid Key")
+
+    # 1. 匹配配方（无匹配则快速失败）
+    recipe = find_recipe(req.query)
+    if not recipe:
+        return {
+            "status": "not_found",
+            "message": "未找到匹配的配方，请换个问法",
+            "query": req.query,
+        }
+
+    # 2. 配额检查
+    db = load_json(DB_FILE)
+    user_info = db.get(user_id, {})
+    user_plan = user_info.get("plan", "free") if isinstance(user_info, dict) else "free"
+
+    if is_premium(recipe) and user_plan == "free":
+        return paywall_response("Premium 配方需要升级解锁。")
+    if user_plan == "free":
+        if check_usage(user_id) >= 3:
+            return paywall_response("今日免费额度已用完。")
+    increment_usage(user_id)
+
+    # 3. 获取脚本路径
+    script_path = recipe.get("script_path") or recipe.get("script") or recipe.get("code")
+    if not script_path:
+        return {
+            "status": "error",
+            "message": "该配方没有关联的执行脚本",
+            "recipe": recipe.get("name", recipe.get("filename", "unknown")),
+        }
+
+    # 4. 构建参数：默认值 → 配方默认 → 请求参数 → 查询解析
+    inputs = dict(_CALC_DEFAULTS)  # 先填默认值
+
+    recipe_args = recipe.get("script_args", {})
+    if isinstance(recipe_args, dict):
+        inputs.update(recipe_args)
+
+    if req.inputs:
+        inputs.update(req.inputs)
+
+    # 从查询中解析参数（中文模式：房租5000）
+    import re as _re
+    chinese_key_map = {
+        "房租": "rent", "租金": "rent", "房租费": "rent",
+        "水电": "utilities", "水电费": "utilities", "水电气": "utilities",
+        "人工": "labor", "人工费": "labor", "工资": "labor", "薪资": "labor",
+        "毛利": "gross_margin", "毛利率": "gross_margin",
+        "售价": "unit_price", "单价": "unit_price",
+        "成本": "unit_cost", "进价": "unit_cost",
+        "其他": "other_fixed", "其他固定": "other_fixed", "其他成本": "other_fixed",
+    }
+    for match in _re.findall(r"([\u4e00-\u9fff]+)\s*(\d+(?:\.\d+)?)", req.query):
+        cn_key, num_val = match
+        if cn_key in chinese_key_map:
+            eng_key = chinese_key_map[cn_key]
+            val = float(num_val)
+            # gross_margin 保持百分比（50 表示 50%）
+            inputs[eng_key] = val
+
+    # 英文模式：key=value
+    for match in _re.findall(r"(\w+)\s*[=:]\s*([^\s,;]+)", req.query):
+        key, val = match
+        if key not in inputs or inputs[key] == _CALC_DEFAULTS.get(key):
+            try:
+                inputs[key] = float(val) if "." in val else int(val)
+            except ValueError:
+                inputs[key] = val
+
+    inputs["query"] = req.query
+
+    # 5. 执行脚本
+    success, output = _run_script_json(script_path, inputs)
+
+    if not success:
+        return {
+            "status": "script_error",
+            "message": output,
+            "recipe": recipe.get("name", recipe.get("filename", "unknown")),
+            "inputs": inputs,
+        }
+
+    # 6. 返回结构化结果
+    try:
+        result_data = json.loads(output)
+    except json.JSONDecodeError:
+        return {
+            "status": "parse_error",
+            "message": "脚本输出格式异常",
+            "raw_output": output[:500],
+        }
+
+    data = result_data.get("data", {})
+    return {
+        "status": "success",
+        "recipe": recipe.get("name", recipe.get("filename", "unknown")),
+        "slug": recipe.get("slug", recipe.get("filename", "")),
+        "data": data,
+        "meta": result_data.get("meta", {}),
+        "inputs": {k: v for k, v in inputs.items() if k != "query"},
+    }
 
 
 @app.post("/api/v1/export")

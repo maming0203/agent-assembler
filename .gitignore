@@ -57,3 +57,6 @@ data/*.json
 # Editor temp files
 *.swp
 *.swo
+
+# Auto-generated recipes (runtime data)
+recipes/

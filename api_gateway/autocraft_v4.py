@@ -578,6 +578,11 @@ async def auto_craft_and_run(query, user_id, max_retries: int = 3):
 
     last_error = None
     result = None
+    last_artifact_paths = None
+    last_recipe_data = None
+    last_eval_result = None
+    last_gate_result = None
+    last_rejected_by = None
 
     for attempt in range(1, max_retries + 1):
         print(f"[AutoCraft v4] Attempt {attempt}/{max_retries} for query: {query}")
@@ -663,10 +668,16 @@ async def auto_craft_and_run(query, user_id, max_retries: int = 3):
         # ---- Step 7: RecipeValidator structural validation (v3) ----
         validation_result = _run_validation(artifact_paths, recipe_data)
 
+        last_artifact_paths = artifact_paths
+        last_recipe_data = recipe_data
+
         if not validation_result["passed"]:
             last_error = f"RecipeValidator failed: {validation_result['summary']}"
+            last_rejected_by = "validator"
             print(f"[AutoCraft v4] {last_error} — retrying...")
-            _cleanup_artifacts(artifact_paths)
+            if attempt < max_retries:
+                _cleanup_artifacts(artifact_paths)
+                last_artifact_paths = None
             continue
 
         # Determine script_test_passed from validation
@@ -674,20 +685,28 @@ async def auto_craft_and_run(query, user_id, max_retries: int = 3):
 
         # ---- Step 8: P0 — Independent Evaluator ----
         eval_result = independent_evaluate(recipe_data, artifact_paths["script_path"], script_test_passed)
+        last_eval_result = eval_result
         if not eval_result["pass"]:
             last_error = "P0 Evaluator rejected: " + eval_result["reason"]
+            last_rejected_by = "evaluator"
             print(f"[AutoCraft v4] {last_error} — retrying...")
-            _cleanup_artifacts(artifact_paths)
+            if attempt < max_retries:
+                _cleanup_artifacts(artifact_paths)
+                last_artifact_paths = None
             continue
         print(f"[AutoCraft v4] P0 Evaluator passed: {eval_result['reason']}")
 
         # ---- Step 9: P2b — Quality Gate ----
         start_time = time.time()
         gate_result = quality_gate(recipe_data, artifact_paths["script_path"], eval_result, execution_time=0)
+        last_gate_result = gate_result
         if not gate_result["pass"]:
             last_error = f"P2b Quality gate rejected (score={gate_result['score']}): {gate_result['reason']}"
+            last_rejected_by = "quality_gate"
             print(f"[AutoCraft v4] {last_error} — retrying...")
-            _cleanup_artifacts(artifact_paths)
+            if attempt < max_retries:
+                _cleanup_artifacts(artifact_paths)
+                last_artifact_paths = None
             continue
         print(f"[AutoCraft v4] P2b Quality gate passed (score={gate_result['score']})")
 
@@ -712,11 +731,28 @@ async def auto_craft_and_run(query, user_id, max_retries: int = 3):
 
     # All retries exhausted
     print(f"[AutoCraft v4] FAILED after {max_retries} attempts. Last error: {last_error}")
-    return {
-        "status": "auto_craft_failed",
-        "message": f"配方生成失败（{max_retries} 次重试后仍未通过校验）",
-        "report": result or "无结果",
-        "last_error": last_error,
-        "attempts": max_retries,
-        "version": "v4",
-    }
+
+    if last_artifact_paths:
+        # 有保留的产物 → Partial（最后一次尝试的产物未被清理）
+        print(f"[AutoCraft v4] Partial: artifacts preserved for manual review")
+        return {
+            "status": "auto_craft_partial",
+            "message": f"配方生成未通过全部质量门禁（{max_retries} 次重试），产物已保留供手动修复",
+            "recipe": last_recipe_data.get("name") if last_recipe_data else None,
+            "artifact_paths": last_artifact_paths,
+            "last_error": last_error,
+            "rejected_by": last_rejected_by,
+            "evaluator": last_eval_result,
+            "quality_gate": last_gate_result,
+            "attempts": max_retries,
+            "version": "v4",
+        }
+    else:
+        return {
+            "status": "auto_craft_failed",
+            "message": f"配方生成失败（{max_retries} 次重试后仍未通过校验）",
+            "report": result or "无结果",
+            "last_error": last_error,
+            "attempts": max_retries,
+            "version": "v4",
+        }

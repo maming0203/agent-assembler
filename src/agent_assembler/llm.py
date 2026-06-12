@@ -35,6 +35,14 @@ def _get_model() -> str:
     return os.environ.get("ASSEMBLER_MODEL", _DEFAULT_MODEL)
 
 
+def _get_fallback_models() -> list[str]:
+    """获取 fallback 模型列表（逗号分隔）。"""
+    raw = os.environ.get("ASSEMBLER_FALLBACK_MODELS", "")
+    if not raw:
+        return []
+    return [m.strip() for m in raw.split(",") if m.strip()]
+
+
 # ──────────────────────────────────────────
 # LLM 响应
 # ──────────────────────────────────────────
@@ -67,10 +75,12 @@ class LLMClient:
         api_key: str | None = None,
         api_base: str | None = None,
         model: str | None = None,
+        fallback_models: list[str] | None = None,
     ):
         self.api_key = api_key or _get_api_key()
         self.api_base = api_base or _get_api_base()
         self.model = model or _get_model()
+        self.fallback_models = fallback_models if fallback_models is not None else _get_fallback_models()
 
     def chat(
         self,
@@ -117,8 +127,37 @@ class LLMClient:
             return self._http_chat(messages, temperature, max_tokens, **kwargs)
 
         except Exception as e:
+            # 主模型失败，尝试 fallback chain
+            for fb_model in self.fallback_models:
+                try:
+                    print(f"[LLM] Primary model failed ({e}), trying fallback: {fb_model}")
+                    fb_client = OpenAI(api_key=self.api_key, base_url=self.api_base)
+                    fb_resp = fb_client.chat.completions.create(
+                        model=fb_model,
+                        messages=messages,
+                        temperature=temperature,
+                        max_tokens=max_tokens,
+                        **kwargs,
+                    )
+                    fb_content = fb_resp.choices[0].message.content or ""
+                    fb_usage = {
+                        "prompt_tokens": fb_resp.usage.prompt_tokens if fb_resp.usage else 0,
+                        "completion_tokens": fb_resp.usage.completion_tokens if fb_resp.usage else 0,
+                        "total_tokens": fb_resp.usage.total_tokens if fb_resp.usage else 0,
+                    }
+                    print(f"[LLM] Fallback to {fb_model} succeeded")
+                    return LLMResponse(
+                        content=fb_content, model=fb_model, usage=fb_usage,
+                        status="fallback",
+                        error=f"Primary({self.model}) failed: {e}; used fallback: {fb_model}",
+                    )
+                except Exception as fb_e:
+                    print(f"[LLM] Fallback {fb_model} also failed: {fb_e}")
+                    continue
+            # 所有 fallback 都失败
             return LLMResponse(
-                content="", model=self.model, status="error", error=str(e)
+                content="", model=self.model, status="error",
+                error=f"All models failed. Primary({self.model}): {e}",
             )
 
     def _http_chat(
@@ -165,8 +204,37 @@ class LLMClient:
                 error=f"HTTP {e.code}: {body}",
             )
         except Exception as e:
+            # 主模型失败，尝试 fallback chain
+            for fb_model in self.fallback_models:
+                try:
+                    print(f"[LLM] Primary model failed ({e}), trying fallback: {fb_model}")
+                    fb_client = OpenAI(api_key=self.api_key, base_url=self.api_base)
+                    fb_resp = fb_client.chat.completions.create(
+                        model=fb_model,
+                        messages=messages,
+                        temperature=temperature,
+                        max_tokens=max_tokens,
+                        **kwargs,
+                    )
+                    fb_content = fb_resp.choices[0].message.content or ""
+                    fb_usage = {
+                        "prompt_tokens": fb_resp.usage.prompt_tokens if fb_resp.usage else 0,
+                        "completion_tokens": fb_resp.usage.completion_tokens if fb_resp.usage else 0,
+                        "total_tokens": fb_resp.usage.total_tokens if fb_resp.usage else 0,
+                    }
+                    print(f"[LLM] Fallback to {fb_model} succeeded")
+                    return LLMResponse(
+                        content=fb_content, model=fb_model, usage=fb_usage,
+                        status="fallback",
+                        error=f"Primary({self.model}) failed: {e}; used fallback: {fb_model}",
+                    )
+                except Exception as fb_e:
+                    print(f"[LLM] Fallback {fb_model} also failed: {fb_e}")
+                    continue
+            # 所有 fallback 都失败
             return LLMResponse(
-                content="", model=self.model, status="error", error=str(e)
+                content="", model=self.model, status="error",
+                error=f"All models failed. Primary({self.model}): {e}",
             )
 
     def __repr__(self) -> str:
