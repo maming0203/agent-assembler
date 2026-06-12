@@ -477,6 +477,7 @@ class CalcRequest(BaseModel):
 
 # 各配方的默认参数（防止必填参数缺失报错）
 _CALC_DEFAULTS = {
+    # 保本点计算参数
     "rent": 0,
     "utilities": 500,
     "labor": 0,
@@ -485,6 +486,23 @@ _CALC_DEFAULTS = {
     "gross_margin": 50,
     "unit_price": 15,
     "unit_cost": 0,
+    # 美容院配方参数
+    "avg_ticket": 300,
+    "monthly_visits": 2,
+    "target_cashflow": 50000,
+    "max_gift_rate": 30,
+    "base_salary": 2000,
+    "manual_fee_per_service": 30,
+    "total_services": 80,
+    "total_revenue": 24000,
+    "commission_rate": 10,
+    "tier_bonus_threshold": 100,
+    "tier_bonus_per_service": 10,
+    "product_cost": 30,
+    "labor_hours": 1.5,
+    "hourly_labor_cost": 50,
+    "target_margin": 60,
+    "overhead_rate": 20,
 }
 
 
@@ -547,6 +565,7 @@ async def calc_recipe(req: CalcRequest, x_api_key: str = Header(None)):
     # 从查询中解析参数（中文模式：房租5000）
     import re as _re
     chinese_key_map = {
+        # 保本点计算
         "房租": "rent", "租金": "rent", "房租费": "rent",
         "水电": "utilities", "水电费": "utilities", "水电气": "utilities",
         "人工": "labor", "人工费": "labor", "工资": "labor", "薪资": "labor",
@@ -554,6 +573,20 @@ async def calc_recipe(req: CalcRequest, x_api_key: str = Header(None)):
         "售价": "unit_price", "单价": "unit_price",
         "成本": "unit_cost", "进价": "unit_cost",
         "其他": "other_fixed", "其他固定": "other_fixed", "其他成本": "other_fixed",
+        # 美容院配方
+        "客单价": "avg_ticket", "均价": "avg_ticket",
+        "到店": "monthly_visits", "月到店": "monthly_visits",
+        "充值": "target_cashflow", "目标": "target_cashflow",
+        "赠送": "max_gift_rate", "赠送比例": "max_gift_rate",
+        "底薪": "base_salary",
+        "手工费": "manual_fee_per_service",
+        "服务次数": "total_services", "次数": "total_services",
+        "业绩": "total_revenue",
+        "提成": "commission_rate", "提成比例": "commission_rate",
+        "产品成本": "product_cost",
+        "工时": "labor_hours",
+        "时薪": "hourly_labor_cost",
+        "利润率": "target_margin",
     }
     for match in _re.findall(r"([\u4e00-\u9fff]+)\s*(\d+(?:\.\d+)?)", req.query):
         cn_key, num_val = match
@@ -573,6 +606,10 @@ async def calc_recipe(req: CalcRequest, x_api_key: str = Header(None)):
                 inputs[key] = val
 
     inputs["query"] = req.query
+    
+    # 特殊处理：广告合规检测需要 ad_text 参数
+    if "ad_compliance" in script_path or "ad-compliance" in script_path:
+        inputs["ad_text"] = req.query
 
     # 5. 执行脚本
     success, output = _run_script_json(script_path, inputs)
