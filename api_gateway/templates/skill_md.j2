@@ -10,15 +10,18 @@ category: {{ category | default("AutoCraft") }}
 
 > 自动生成技能文件 — 由 AutoCraft v3 为配方「{{ recipe_name }}」创建
 
+## 触发条件
+
+当用户提到以下任一关键词时触发：
+{% for kw in trigger_keywords %}
+- {{ kw }}
+{% endfor %}
+
 ## GEO 优化清单
 
 - **意图描述**: {{ intent_description | default("用户需要关于" ~ recipe_name ~ "的专业帮助") }}
 - **场景标签**: {{ scenario_tags | default(["咨询", "分析"]) | join(", ") }}
 - **适用人群**: {{ target_audience | default("需要" ~ recipe_name ~ "解决方案的用户") }}
-
-## 触发关键词
-
-{{ trigger_keywords | join(", ") }}
 
 ## Few-shot 示例
 
@@ -46,13 +49,13 @@ category: {{ category | default("AutoCraft") }}
 4. **提供方案** — 给出结构化、可操作的建议
 5. **跟进反馈** — 根据用户反馈调整方案
 
-## 输入 Schema
+## 输入参数
 
 {% for param in input_schema %}
 - **{{ param.name }}** (`{{ param.type }}`): {{ param.description }}{% if param.required %} [必填]{% else %} [选填，默认: {{ param.default }}]{% endif %}
 {% endfor %}
 
-## 输出 Schema
+## 输出格式
 
 {% for field in output_schema %}
 - **{{ field.name }}** (`{{ field.type }}`): {{ field.description }}

@@ -1,33 +1,37 @@
 {
   "name": "{{ tool_name | default(skill_name | replace(' ', '_') | lower) }}",
-  "description": "{{ recipe_name }} — Auto-generated MCP tool",
   "version": "{{ version | default('1.0.0') }}",
+  "description": "{{ recipe_name }} — Auto-generated MCP tool",
   "recipe": "{{ recipe_name }}",
-  "input_schema": {
-    "type": "object",
-    "properties": {
-      {% for param in input_schema %}
-      "{{ param.name }}": {
-        "type": "{{ param.type }}",
-        "description": "{{ param.description }}"{% if param.required %},
-        "required": true{% endif %}{% if param.default is defined %},
-        "default": {{ param.default | tojson }}{% endif %}
-      }{% if not loop.last %},{% endif %}
-      {% endfor %}
-    },
-    "required": {{ required_params | default([]) | tojson }}
-  },
-  "output_schema": {
-    "type": "object",
-    "properties": {
-      {% for field in output_schema %}
-      "{{ field.name }}": {
-        "type": "{{ field.type }}",
-        "description": "{{ field.description }}"
-      }{% if not loop.last %},{% endif %}
-      {% endfor %}
+  "tools": [
+    {
+      "name": "{{ recipe_name | replace(' ', '-') | lower }}",
+      "description": "{{ recipe_name }} 配方执行工具",
+      "input_schema": {
+        "type": "object",
+        "required": {{ required_params | default(["query"]) | tojson }},
+        "properties": {
+          {% for param in input_schema %}
+          "{{ param.name }}": {
+            "type": "{{ 'string' if param.type == 'string' else 'number' if param.type in ['number', 'integer', 'float'] else 'object' }}",
+            "description": "{{ param.description }}"
+          }{% if not loop.last %},{% endif %}
+          {% endfor %}
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          {% for field in output_schema %}
+          "{{ field.name }}": {
+            "type": "{{ 'string' if field.type == 'string' else 'number' if field.type in ['number', 'integer', 'float'] else 'object' }}",
+            "description": "{{ field.description }}"
+          }{% if not loop.last %},{% endif %}
+          {% endfor %}
+        }
+      }
     }
-  },
+  ],
   "execution": {
     "command": ["python3", "{{ script_path | default('recipe_script.py') }}", "--json"],
     "timeout": {{ timeout | default(60) }},
