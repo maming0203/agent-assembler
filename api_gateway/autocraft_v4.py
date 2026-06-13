@@ -298,17 +298,25 @@ def _generate_artifacts(
     scenario_tags = recipe_data.get("scenario_tags", ["咨询", "分析"])
     target_audience = recipe_data.get("target_audience", f"需要{recipe_name}解决方案的用户")
 
-    # File paths
-    script_filename = f"{sanitized_name}.py"
-    script_full_path = os.path.join(AUTO_DIR, script_filename)
-    skill_filename = f"{sanitized_name}-SKILL.md"
-    skill_full_path = os.path.join(AUTO_DIR, skill_filename)
-    mcp_filename = f"{sanitized_name}-mcp.json"
-    mcp_full_path = os.path.join(AUTO_DIR, mcp_filename)
-    recipe_filename = f"{sanitized_name}.json"
-    recipe_full_path = os.path.join(AUTO_DIR, recipe_filename)
+    # 创建独立目录结构: AUTO_DIR/sanitized_name/
+    recipe_dir = os.path.join(AUTO_DIR, sanitized_name)
+    os.makedirs(recipe_dir, exist_ok=True)
+    
+    # 创建 autocraft/ 子目录（标准结构）
+    autocraft_dir = os.path.join(recipe_dir, "autocraft")
+    os.makedirs(autocraft_dir, exist_ok=True)
 
-    script_path_rel = script_filename
+    # File paths (标准结构)
+    script_filename = f"{sanitized_name}.py"
+    script_full_path = os.path.join(autocraft_dir, script_filename)  # 放在 autocraft/ 内
+    skill_filename = "SKILL.md"
+    skill_full_path = os.path.join(recipe_dir, skill_filename)
+    mcp_filename = "mcp.json"
+    mcp_full_path = os.path.join(recipe_dir, mcp_filename)
+    recipe_filename = f"{sanitized_name}.json"
+    recipe_full_path = os.path.join(recipe_dir, recipe_filename)
+
+    script_path_rel = f"autocraft/{script_filename}"
 
     # 1. Write Python script
     with open(script_full_path, "w", encoding="utf-8") as f:
