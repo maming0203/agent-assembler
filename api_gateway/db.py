@@ -3,7 +3,7 @@ import json
 import os
 import time
 
-from .config import DB_FILE, USAGE_FILE, RECIPE_BASE, SKILL_BASE, SKILL_AUTO_DIR, IS_CLOUD
+from .config import DB_FILE, USAGE_FILE, RECIPE_BASE, SKILL_BASE, SKILL_AUTO_DIR, IS_CLOUD, INFRASTRUCTURE_SKILLS
 
 if not os.path.exists(DB_FILE):
     with open(DB_FILE, "w", encoding="utf-8") as fh:
@@ -118,6 +118,18 @@ def load_skill(recipe):
             return fh.read()
     return "Provide expert advice based on general knowledge."
 
+
+
+def load_infrastructure_skills():
+    """加载基础设施层 skill — 所有配方输出都需要遵守。"""
+    contents = []
+    for skill_name in INFRASTRUCTURE_SKILLS:
+        # 尝试从 SKILL_BASE 加载
+        skill_path = os.path.join(SKILL_BASE, skill_name, "SKILL.md")
+        if os.path.exists(skill_path):
+            with open(skill_path, encoding="utf-8") as fh:
+                contents.append(fh.read())
+    return "\n\n".join(contents) if contents else ""
 
 def check_usage(uid):
     usage = load_json(USAGE_FILE)

@@ -15,7 +15,7 @@ from .config import (
     AUTOCRAFT_REF_DIR, RECIPE_SCHEMA_PATH, SCRIPT_DIRS,
 )
 from .db import (
-    check_usage, find_recipe, find_skill_in_directory,
+    check_usage, find_recipe, find_skill_in_directory, load_infrastructure_skills,
     get_user_id_by_key, increment_usage, is_premium,
     load_json, load_skill, paywall_response, save_json,
 )
@@ -266,6 +266,9 @@ async def run_recipe(req: QueryRequest, x_api_key: str = Header(None)):
         success, script_output = _run_script(script_path, script_args)
         if success:
             skill_content = load_skill(recipe)
+            infra = load_infrastructure_skills()
+            if infra:
+                skill_content = infra + "\n\n" + skill_content
             agent_query = (
                 f"You are an assistant. A calculation/processing tool has produced the following result.\n"
                 f"Strictly follow this skill logic for context:\n{skill_content}\n\n"
@@ -279,6 +282,9 @@ async def run_recipe(req: QueryRequest, x_api_key: str = Header(None)):
         else:
             print(f"[Script Engine] Script failed, falling back to LLM: {script_output}")
             skill_content = load_skill(recipe)
+            infra = load_infrastructure_skills()
+            if infra:
+                skill_content = infra + "\n\n" + skill_content
             agent_query = (
                 f"Strictly follow this skill logic:\n{skill_content}\n\n"
                 f"User Query: {req.query}\n\n"
@@ -286,6 +292,9 @@ async def run_recipe(req: QueryRequest, x_api_key: str = Header(None)):
             )
     else:
         skill_content = load_skill(recipe)
+        infra = load_infrastructure_skills()
+        if infra:
+            skill_content = infra + "\n\n" + skill_content
         agent_query = f"Strictly follow this skill logic:\n{skill_content}\n\nUser Query: {req.query}"
     routing_id = recipe.get("routing", {}).get("agent_id", "") if isinstance(recipe.get("routing"), dict) else recipe.get("routing", "")
     if not routing_id:

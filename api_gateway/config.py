@@ -17,6 +17,12 @@ HERMES_RECIPES = os.path.expanduser("~/.hermes/recipes")
 VAULT_WRITE_SCRIPT = os.path.expanduser("~/.openclaw/workspace/scripts/vault_write.py")
 SKILL_SIZE_LIMIT = 4096  # 4KB hard limit
 
+# JIT 基础设施层 — 无条件注入，不走配方匹配
+# 这些 skill 所有配方输出都需要遵守，跟任务内容无关
+INFRASTRUCTURE_SKILLS = [
+    "obsidian-doc-format",  # 所有 Markdown 输出必须有 YAML Frontmatter
+]
+
 SKILL_AUTO_DIR = os.path.join(AUTO_DIR, "Skills")
 os.makedirs(AUTO_DIR, exist_ok=True)
 os.makedirs(SKILL_AUTO_DIR, exist_ok=True)
